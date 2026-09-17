@@ -1,0 +1,140 @@
+/* Organic design system — tokens and component classes, with the WhongNaiMor theme overrides applied. */
+
+:root {
+  --color-bg: #dec0f1;
+  --color-surface: #efd9ce;
+  --color-text: #2a2233;
+  --color-divider: rgba(42, 34, 51, 0.15);
+  --color-accent: #7d50a8;
+  --color-accent-2: #cd7e9f;
+
+  --color-accent-100: #f7f1fc; --color-accent-200: #eadff7; --color-accent-300: #d9c4ee;
+  --color-accent-400: #bda0dd; --color-accent-500: #9b73c4; --color-accent-600: #6c4194;
+  --color-accent-700: #54307a; --color-accent-800: #3e2259; --color-accent-900: #281539;
+
+  --color-accent-2-100: #fdf1f6; --color-accent-2-200: #f8dde8; --color-accent-2-300: #f0c3d5;
+  --color-accent-2-400: #e2a0bc; --color-accent-2-500: #cd7e9f; --color-accent-2-600: #b05f82;
+  --color-accent-2-700: #8c4765; --color-accent-2-800: #66324a; --color-accent-2-900: #40202e;
+
+  --color-neutral-100: #f8ece5; --color-neutral-200: #e7d4c8; --color-neutral-300: #d6c2b4;
+  --color-neutral-400: #c2b8ad; --color-neutral-500: #a2988f; --color-neutral-600: #6a625c;
+  --color-neutral-700: #5f5860; --color-neutral-800: #453e4d; --color-neutral-900: #2e2838;
+
+  --font-heading: var(--font-caprasimo), "Caprasimo", system-ui, sans-serif;
+  --font-heading-weight: 400;
+  --font-body: var(--font-figtree), "Figtree", var(--font-noto-thai), "Noto Sans Thai", system-ui, sans-serif;
+
+  --space-1: 4.4px;
+  --space-2: 8.8px;
+  --space-3: 13.2px;
+  --space-4: 17.6px;
+  --space-6: 26.4px;
+  --space-8: 35.2px;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
+
+  --pri: #c9603f;
+  --peach: #f2e1fa;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400;
+  background: var(--color-bg); color: var(--color-text); font-family: var(--font-body);
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-body); font-weight: var(--font-heading-weight);
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--font-heading); }
+p { margin: 0 0 var(--space-3); }
+a { color: var(--color-accent-700); text-underline-offset: 3px; }
+a:hover { color: var(--color-accent); }
+img { display: block; max-width: 100%; }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* — buttons — */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--color-text);
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: 999px;
+}
+.btn svg { display: block; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--color-accent); color: var(--color-bg); }
+.btn-primary:hover { background: var(--color-accent-600); }
+.btn-primary:active { background: var(--color-accent-700); }
+.btn-secondary { border-color: var(--color-divider); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.btn-icon { width: 36px; height: 36px; padding: 0; }
+
+/* — forms — */
+.input {
+  width: 100%; min-height: 36px; padding: 6px 14px; font: inherit;
+  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: 999px;
+}
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 90px; resize: vertical; }
+.seg {
+  display: inline-flex; overflow: hidden;
+  border: 1px solid var(--color-divider); border-radius: 999px;
+}
+
+/* — tags — */
+.tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px;
+  border-radius: 999px; border: 0;
+}
+
+/* — dialog — */
+.dialog-backdrop {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+  overscroll-behavior: contain;
+}
+.dialog {
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4); border-radius: calc(var(--radius-lg) * 1.15);
+  background: var(--color-surface); box-shadow: var(--shadow-lg);
+}
+.dialog-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 20px; }
+.dialog-body { font-size: 14px; opacity: 0.85; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+
+/* — WhongNaiMor — */
+body.wnm-locked { overflow: hidden !important; }
+@keyframes wnm-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes wnm-pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@media (max-width: 700px) { nav .seg button { padding: 6px 8px !important; font-size: 10.5px !important; } }
+
+/* Hover states for elements styled inline (inline styles otherwise win). */
+.hov-bg:hover { background: var(--color-accent-100) !important; }
+.hov-border:hover { border-color: var(--color-accent) !important; }
+.hov-color:hover { color: var(--color-accent) !important; }
+.hov-lift:hover { transform: translateY(-2px); }
