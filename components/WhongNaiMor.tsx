@@ -46,7 +46,6 @@ export interface AppState {
   notifOpen: boolean;
   readNotif: boolean;
   toast: string | null;
-  roleOverride: ViewerRole | null;
   w: number;
 }
 
@@ -61,7 +60,7 @@ const INITIAL: AppState = {
   composeOpen: false, newText: '', newCats: [], newMedia: [], newImportant: false,
   reportFor: null, reason: null,
   editFor: null, editTitle: '', editBody: '', editCats: [], editImportant: false,
-  notifOpen: false, readNotif: false, toast: null, roleOverride: null,
+  notifOpen: false, readNotif: false, toast: null,
   w: 1280,
 };
 
@@ -80,7 +79,7 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const ids = useRef({ comment: 0, post: 0, media: 0 });
 
-  const role = st.roleOverride || viewerRole;
+  const role = viewerRole;
   const isGuest = role === 'guest';
   const isMod = role === 'moderator';
 
@@ -215,21 +214,6 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
           placeholder="ค้นหาโพสต์ หมวดหมู่ หรือผู้ใช้ · search posts, categories"
           style={{ flex: '1 1 200px', maxWidth: 420, margin: '0 auto', background: 'var(--color-surface)', fontSize: 13, padding: '9px 16px' }}
         />
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }} title="สลับบทบาทเพื่อดูสิทธิ์ของผู้ใช้แต่ละแบบ">
-          <span style={{ fontSize: 10, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>มุมมอง</span>
-          <div className="seg" style={{ background: 'var(--color-surface)' }}>
-            {([['student', 'นักศึกษา'], ['moderator', 'ผู้ดูแล'], ['guest', 'ผู้ใช้ภายนอก']] as const).map(([k, l]) => (
-              <button
-                key={k}
-                onClick={() => set({ roleOverride: k, activeId: null, composeOpen: false, reportFor: null, editFor: null, notifOpen: false })}
-                style={{ cursor: 'pointer', border: 0, fontFamily: 'var(--font-body)', fontSize: 11.5, padding: '6px 11px', background: role === k ? 'var(--color-accent)' : 'transparent', color: role === k ? '#fff' : 'var(--color-neutral-800)' }}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
           <button className="btn btn-ghost" onClick={() => set({ notifOpen: !st.notifOpen, readNotif: true })} style={{ fontSize: 13, color: 'var(--color-neutral-800)', padding: '6px 8px' }}>
