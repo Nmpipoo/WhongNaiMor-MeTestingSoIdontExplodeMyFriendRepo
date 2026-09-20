@@ -1,5 +1,2 @@
-node_modules
-.next
-next-env.d.ts
-*.tsbuildinfo
 .claude
+node_modules
