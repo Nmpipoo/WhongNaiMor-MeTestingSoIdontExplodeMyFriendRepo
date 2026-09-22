@@ -1,7 +1,7 @@
 'use client';
 
-import type { CSSProperties } from 'react';
-import { ME, ROLE_LABEL, ROLE_STYLE, type Comment, type Post } from '@/lib/data';
+import { useRef, type CSSProperties } from 'react';
+import { ME, ROLE_LABEL, ROLE_STYLE, type Comment, type Post, type Reply } from '@/lib/data';
 import { avatarStyle } from '@/lib/ui';
 import PostCard, { type PostCardProps } from './PostCard';
 import type { AppState, SetState } from './WhongNaiMor';
@@ -22,23 +22,95 @@ interface Props {
   onClose: () => void;
 }
 
+/** Textareas grow with their content so the box reads like a single line until it needs more. */
+const autoGrow = (el: HTMLTextAreaElement) => {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+};
+
+type BoxRef = React.RefObject<HTMLTextAreaElement | null>;
+const shrink = (r: BoxRef) => { if (r.current) r.current.style.height = 'auto'; };
+
+function ThumbIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 10.5v9H4.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z" />
+      <path d="M7 10.5l4.2-7.1a1.6 1.6 0 0 1 2.9 1.2l-.9 4.2h5a2 2 0 0 1 2 2.4l-1.3 6.2a2 2 0 0 1-2 1.6H7z" />
+    </svg>
+  );
+}
+
 export default function PostModal({ st, set, active, card, isGuest, isMod, meName, meInitials, meAvatar, gate, flash, nextCommentId, onClose }: Props) {
+  const draftBox = useRef<HTMLTextAreaElement>(null);
+  const replyBox = useRef<HTMLTextAreaElement>(null);
+
   const all = st.comments[active.id] || [];
   const shownCount = Math.min(st.shown, all.length);
   const thread = all.slice(0, shownCount);
 
+  const makeEntry = (text: string) => ({
+    id: nextCommentId(), a: ME.name, i: ME.initials, t: ME.tint, time: 'เมื่อสักครู่', text,
+  });
+
   const submitComment = () => {
     const text = st.draft.trim();
     if (!text) return flash('ยังไม่ได้พิมพ์ความเห็น');
-    const nc: Comment = { id: nextCommentId(), a: ME.name, r: isMod ? 'mod' : 'student', i: ME.initials, t: ME.tint, time: 'เมื่อสักครู่', text, likes: 0, replies: [] };
+    const nc: Comment = { ...makeEntry(text), r: isMod ? 'mod' : 'student', likes: 0, replies: [] };
     set((prev) => {
-      const list = prev.comments[active.id] || [];
-      const next = prev.replyTo
-        ? list.map((c) => (c.a === prev.replyTo ? { ...c, replies: [...(c.replies || []), nc] } : c))
-        : [...list, nc];
-      return { comments: { ...prev.comments, [active.id]: next }, draft: '', replyTo: null, shown: Math.max(prev.shown, next.length) };
+      const next = [...(prev.comments[active.id] || []), nc];
+      return {
+        comments: { ...prev.comments, [active.id]: next },
+        draft: '', composerOpen: false, shown: Math.max(prev.shown, next.length),
+      };
     });
+    shrink(draftBox);
     flash('ส่งความเห็นแล้ว');
+  };
+
+  const submitReply = (parent: Comment) => {
+    const text = st.replyDraft.trim();
+    if (!text) return flash('ยังไม่ได้พิมพ์คำตอบ');
+    const nr: Reply = { ...makeEntry(text), likes: 0 };
+    set((prev) => ({
+      comments: {
+        ...prev.comments,
+        [active.id]: (prev.comments[active.id] || []).map((c) => (c.id === parent.id ? { ...c, replies: [...(c.replies || []), nr] } : c)),
+      },
+      replyTo: null,
+      replyDraft: '',
+      openReplies: { ...prev.openReplies, [parent.id]: true },
+    }));
+    shrink(replyBox);
+    flash('ตอบกลับแล้ว');
+  };
+
+  const toggleLike = (id: string) => set((prev) => ({ cLikes: { ...prev.cLikes, [id]: !prev.cLikes[id] } }));
+
+  const openReplyBox = (c: Comment) => (isGuest ? gate() : set({ replyTo: c.id, replyDraft: '' }));
+
+  /** The like / reply action row that sits under every comment and reply, YouTube style. */
+  const actionRow = (id: string, baseLikes: number, onReply?: () => void) => {
+    const liked = !!st.cLikes[id];
+    const n = baseLikes + (liked ? 1 : 0);
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 4 }}>
+        <button
+          className="btn btn-ghost"
+          onClick={() => (isGuest ? gate() : toggleLike(id))}
+          aria-pressed={liked}
+          title={liked ? 'เลิกถูกใจ' : 'ถูกใจ'}
+          style={{ fontSize: 12, padding: '5px 8px', color: liked ? 'var(--color-accent)' : 'var(--color-neutral-600)' }}
+        >
+          <ThumbIcon filled={liked} />
+          {n > 0 ? n : ''}
+        </button>
+        {onReply && (
+          <button className="btn btn-ghost" onClick={onReply} style={{ fontSize: 12, fontWeight: 600, padding: '5px 10px', color: 'var(--color-neutral-700)' }}>
+            ตอบกลับ
+          </button>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -54,71 +126,102 @@ export default function PostModal({ st, set, active, card, isGuest, isMod, meNam
             <PostCard {...card} />
           </div>
 
-          <section style={{ flex: 'none', display: 'flex', flexDirection: 'column', gap: 11 }}>
+          <section style={{ flex: 'none', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
-              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>ความเห็น</h4>
-              <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>
-                {all.length > shownCount ? `แสดง ${shownCount} จาก ${all.length} ความเห็น` : `${all.length} ความเห็น`}
-              </span>
+              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{all.length.toLocaleString()} ความเห็น</h4>
+              {all.length > shownCount && (
+                <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>แสดง {shownCount} รายการแรก</span>
+              )}
             </div>
 
             {!isGuest ? (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 16, padding: 13 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <span style={meAvatar}>{meInitials}</span>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 9, minWidth: 0 }}>
-                  {st.replyTo && <span style={{ fontSize: 11.5, color: 'var(--color-accent-700)' }}>กำลังตอบ {st.replyTo}</span>}
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <textarea
-                    className="input"
+                    ref={draftBox}
+                    className="cmt-input"
+                    rows={1}
                     value={st.draft}
-                    onChange={(e) => set({ draft: e.target.value })}
-                    placeholder="เขียนความเห็นอย่างสุภาพ · เห็นได้เฉพาะผู้ใช้ที่ยืนยัน @cmu.ac.th"
-                    style={{ borderRadius: 14, minHeight: 62, background: 'var(--color-neutral-100)', fontSize: 13 }}
+                    onFocus={() => set({ composerOpen: true })}
+                    onChange={(e) => { autoGrow(e.currentTarget); set({ draft: e.target.value }); }}
+                    placeholder="เขียนความเห็น…"
                   />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>โพสต์ในชื่อ {meName}</span>
-                    <button className="btn btn-primary" onClick={submitComment} style={{ marginLeft: 'auto', padding: '7px 16px', fontSize: 12.5 }}>ส่งความเห็น</button>
-                  </div>
+                  {(st.composerOpen || st.draft) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                      <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', marginRight: 'auto' }}>โพสต์ในชื่อ {meName}</span>
+                      <button className="btn btn-ghost" onClick={() => { shrink(draftBox); set({ draft: '', composerOpen: false }); }} style={{ fontSize: 12.5, padding: '7px 14px', color: 'var(--color-neutral-700)' }}>ยกเลิก</button>
+                      <button className="btn btn-primary" onClick={submitComment} disabled={!st.draft.trim()} style={{ padding: '7px 16px', fontSize: 12.5 }}>แสดงความเห็น</button>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
               <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: 'var(--color-neutral-700)', background: 'var(--color-neutral-100)', borderRadius: 14, padding: '13px 15px' }}>
-                บัญชีภายนอกมหาวิทยาลัยอ่านโพสต์สาธารณะได้ แต่ไม่สามารถแสดงความเห็นหรือแสดงความรู้สึกได้
+                บัญชีภายนอกมหาวิทยาลัยอ่านโพสต์สาธารณะได้ แต่ไม่สามารถแสดงความเห็นหรือกดถูกใจได้
               </p>
             )}
 
             {thread.map((c) => {
-              const liked = !!st.cLikes[c.id];
+              const replies = c.replies || [];
+              const expanded = !!st.openReplies[c.id];
               return (
-                <div key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <div key={c.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                   <span style={avatarStyle(c.t, 34)}>{c.i}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 14, padding: '11px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700 }}>{c.a}</span>
-                        {c.r !== 'student' && <span className="tag" style={{ ...ROLE_STYLE[c.r], fontSize: 10 }}>{ROLE_LABEL[c.r]}</span>}
-                        <span style={{ fontSize: 11, color: 'var(--color-neutral-600)' }}>{c.time}</span>
-                      </div>
-                      <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: 'var(--color-neutral-800)' }}>{c.text}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{c.a}</span>
+                      {c.r !== 'student' && <span className="tag" style={{ ...ROLE_STYLE[c.r], fontSize: 10 }}>{ROLE_LABEL[c.r]}</span>}
+                      <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>{c.time}</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 4, padding: '3px 2px' }}>
+                    <p style={{ margin: '3px 0 0', fontSize: 13.5, lineHeight: 1.5, color: 'var(--color-text)', whiteSpace: 'pre-wrap' }}>{c.text}</p>
+
+                    {actionRow(c.id, c.likes || 0, () => openReplyBox(c))}
+
+                    {st.replyTo === c.id && (
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 8 }}>
+                        <span style={avatarStyle(isGuest ? 3 : ME.tint, 26)}>{meInitials}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <textarea
+                            ref={replyBox}
+                            className="cmt-input"
+                            rows={1}
+                            autoFocus
+                            value={st.replyDraft}
+                            onChange={(e) => { autoGrow(e.currentTarget); set({ replyDraft: e.target.value }); }}
+                            placeholder={`ตอบกลับ ${c.a}…`}
+                          />
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                            <button className="btn btn-ghost" onClick={() => { shrink(replyBox); set({ replyTo: null, replyDraft: '' }); }} style={{ fontSize: 12.5, padding: '6px 14px', color: 'var(--color-neutral-700)' }}>ยกเลิก</button>
+                            <button className="btn btn-primary" onClick={() => submitReply(c)} disabled={!st.replyDraft.trim()} style={{ padding: '6px 16px', fontSize: 12.5 }}>ตอบกลับ</button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {replies.length > 0 && (
                       <button
                         className="btn btn-ghost"
-                        onClick={() => (isGuest ? gate() : set((prev) => ({ cLikes: { ...prev.cLikes, [c.id]: !prev.cLikes[c.id] } })))}
-                        style={{ fontSize: 12, color: liked ? 'var(--color-accent)' : 'var(--color-neutral-600)' }}
+                        onClick={() => set((prev) => ({ openReplies: { ...prev.openReplies, [c.id]: !prev.openReplies[c.id] } }))}
+                        style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, padding: '6px 12px', color: 'var(--color-accent-700)', background: expanded ? 'transparent' : undefined }}
                       >
-                        ถูกใจ {(c.likes || 0) + (liked ? 1 : 0)}
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s ease' }}>
+                          <path d="M6 9.5l6 6 6-6" />
+                        </svg>
+                        {replies.length} การตอบกลับ
                       </button>
-                      <button className="btn btn-ghost" onClick={() => (isGuest ? gate() : set({ replyTo: c.a }))} style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>ตอบกลับ</button>
-                    </div>
-                    {(c.replies || []).map((r) => (
-                      <div key={r.id} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', margin: '2px 0 8px 10px', paddingLeft: 12, borderLeft: '2px solid var(--color-accent-200)' }}>
+                    )}
+
+                    {expanded && replies.map((r) => (
+                      <div key={r.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 12 }}>
                         <span style={avatarStyle(r.t, 26)}>{r.i}</span>
-                        <div style={{ flex: 1, minWidth: 0, background: 'var(--color-neutral-100)', borderRadius: 12, padding: '9px 13px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 2 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 12.5, fontWeight: 700 }}>{r.a}</span>
-                            <span style={{ fontSize: 10.5, color: 'var(--color-neutral-600)' }}>{r.time}</span>
+                            <span style={{ fontSize: 11, color: 'var(--color-neutral-600)' }}>{r.time}</span>
                           </div>
-                          <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: 'var(--color-neutral-800)' }}>{r.text}</p>
+                          <p style={{ margin: '3px 0 0', fontSize: 13, lineHeight: 1.5, color: 'var(--color-text)', whiteSpace: 'pre-wrap' }}>{r.text}</p>
+                          {actionRow(r.id, r.likes || 0)}
                         </div>
                       </div>
                     ))}

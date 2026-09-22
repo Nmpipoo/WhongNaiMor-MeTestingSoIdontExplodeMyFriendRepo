@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react';
 
 export type Role = 'org' | 'staff' | 'mod' | 'student';
-export type ReactKey = 'like' | 'help' | 'thank' | 'care';
 export type ReportStatus = 'Open' | 'Reviewed' | 'Dismissed';
 
 export interface Media { type: 'image' | 'video'; label: string }
@@ -20,26 +19,19 @@ export interface Post {
   title: string;
   body: string;
   cats: string[];
-  reacts: Record<ReactKey, number>;
+  likes: number;
   media?: Media[];
   notified?: number;
   reports?: number;
   edited?: string;
 }
 
-export interface Reply { id: string; a: string; i: string; t: number; time: string; text: string }
+export interface Reply { id: string; a: string; i: string; t: number; time: string; text: string; likes?: number }
 export interface Comment extends Reply { r: Role; likes: number; replies: Reply[] }
 
 export const TINTS: [string, string][] = [
   ['#eadff7', '#3e2259'], ['#f8dde8', '#66324a'], ['#e1eecc', '#3d472b'],
   ['#dbe7f5', '#2c3f57'], ['#fbeccd', '#5c4718'], ['#f7ddd6', '#6b2f1c'],
-];
-
-export const REACTS: { key: ReactKey; label: string; dot: string }[] = [
-  { key: 'like', label: 'ถูกใจ', dot: '#7d50a8' },
-  { key: 'help', label: 'ช่วยได้', dot: '#5f8f5a' },
-  { key: 'thank', label: 'ขอบคุณ', dot: '#c9913f' },
-  { key: 'care', label: 'ห่วงใย', dot: '#cd7e9f' },
 ];
 
 // Category rows are seeded by the dev team only (CategoryName + Priority).
@@ -86,66 +78,66 @@ export const POSTS: Post[] = [
     title: 'งดจ่ายน้ำประปา หอพัก 40 ปี อาคาร 3 และ 4 · 12–14 ก.ย.',
     body: 'ซ่อมท่อเมนหลังอาคาร 5 จะไม่มีน้ำใช้ช่วง 22:00–05:00 ทั้งสามคืน กรุณาสำรองน้ำล่วงหน้า · No water supply 22:00–05:00 for three nights. Please store water in advance.',
     cats: ['ประกาศ / Announcements', 'หอพัก / Housing'],
-    reacts: { like: 64, help: 128, thank: 141, care: 9 }, notified: 1204 },
+    likes: 342, notified: 1204 },
   { id: 'p2', important: true, type: 'announce', priority: 'notice', role: 'org',
     name: 'กองพัฒนานักศึกษา มช.', meta: 'บุคลากร · กองพัฒนานักศึกษา', time: '2 ชั่วโมงที่แล้ว', initials: 'กพ', tint: 0,
     title: 'PM2.5 เกินมาตรฐาน งดกิจกรรมกลางแจ้งวันนี้',
     body: 'ค่าฝุ่นหน้าหอประชุมวัดได้ 94 µg/m³ ขอความร่วมมืองดกิจกรรมกลางแจ้งและสวมหน้ากากเมื่อออกนอกอาคาร จุดแจกหน้ากากอยู่ที่ศาลาธรรม',
-    cats: ['ประกาศ / Announcements'], reacts: { like: 41, help: 77, thank: 60, care: 33 }, notified: 1204 },
+    cats: ['ประกาศ / Announcements'], likes: 211, notified: 1204 },
   { id: 'p3', important: true, type: 'announce', priority: null, role: 'staff',
     name: 'อาจารย์ปรีดา ว.', meta: 'บุคลากร · สำนักทะเบียน', time: 'เมื่อวาน 16:40', initials: 'ปว', tint: 3,
     title: 'เปลี่ยนห้องสอบกลางภาค SE212 เป็น RB5-301',
     body: 'คณะวิศวกรรมศาสตร์แจ้งเปลี่ยนห้องสอบกลางภาควิชา SE212 เป็น RB5-301 เวลาเดิม นักศึกษาที่ลงทะเบียนทุกคนได้รับแจ้งเตือนแล้ว',
     cats: ['ประกาศ / Announcements', 'เรียน / Academics'],
-    reacts: { like: 212, help: 96, thank: 130, care: 4 }, notified: 210 },
+    likes: 442, notified: 210 },
   { id: 'p4', important: true, type: 'announce', priority: null, role: 'org',
     name: 'CMU Transit', meta: 'บุคลากร · งานขนส่ง', time: '2 วันที่แล้ว', initials: 'CT', tint: 2,
     title: 'ปรับตารางรถไฟฟ้าขนส่งภายในมหาวิทยาลัย',
     body: 'สายสีแดงเพิ่มรอบช่วง 07:30–09:00 และลดรอบหลัง 19:00 มีผลตั้งแต่วันจันทร์นี้ ดูตารางเต็มได้ที่ป้ายจอดทุกจุด',
     media: [{ type: 'image', label: 'ตารางเดินรถสายสีแดง' }, { type: 'image', label: 'ตารางสายสีเขียว' }, { type: 'image', label: 'แผนผังจุดจอด' }],
     cats: ['ประกาศ / Announcements'],
-    reacts: { like: 88, help: 51, thank: 34, care: 2 }, notified: 1204 },
+    likes: 175, notified: 1204 },
   { id: 'p12', important: true, type: 'announce', priority: 'notice', role: 'staff',
     name: 'อาจารย์ปรีดา ว.', meta: 'บุคลากร · สำนักทะเบียน', time: '4 ชั่วโมงที่แล้ว', initials: 'ปว', tint: 3,
     title: 'เปิดลงทะเบียนเพิ่ม SE212 รอบพิเศษ 40 ที่นั่ง · ปิดรับ 19 ก.ย.',
     body: 'คณะเปิดที่นั่งเพิ่มสำหรับนักศึกษาที่ลงทะเบียนไม่ทันรอบปกติ ลงชื่อในระบบ CMU SIS ได้ถึงวันศุกร์ 16:00 เรียงตามลำดับการลงชื่อ ถ้ามีคำถามเรื่องวิชาบังคับก่อนถามไว้ในความเห็นได้เลย จะตอบรวมทุกวัน',
     cats: ['ประกาศ / Announcements', 'เรียน / Academics'],
-    reacts: { like: 1240, help: 866, thank: 512, care: 31 }, notified: 1204 },
+    likes: 2649, notified: 1204 },
 
   { id: 'p5', important: false, type: 'question', priority: null, role: 'student',
     name: 'Ploy Sriwan', meta: 'Software Engineering ปี 3', time: '3 ชั่วโมงที่แล้ว', initials: 'PS', tint: 1,
     title: 'รายงาน Lab SE212 ยังส่งได้อยู่ไหมถ้าเลยกำหนด',
     body: 'อยากรู้ว่าถ้าส่งช้ากว่ากำหนดยังได้คะแนนบางส่วนไหม แล้วส่วน normalization จากคาบที่แล้วต้องแก้ตามคอมเมนต์ก่อนส่งหรือเปล่า',
-    cats: ['คำถาม / Q&A', 'เรียน / Academics'], reacts: { like: 12, help: 30, thank: 8, care: 1 } },
+    cats: ['คำถาม / Q&A', 'เรียน / Academics'], likes: 51 },
   { id: 'p11', important: false, type: 'question', priority: null, role: 'student',
     name: 'Ice Supakorn', meta: 'Engineering ปี 4', time: '7 ชั่วโมงที่แล้ว', initials: 'IS', tint: 3,
     title: 'ปริ้นโปสเตอร์ A0 แถวประตูสวนดอกที่ไหนดี',
     body: 'ต้องใช้พรุ่งนี้เช้า ขอร้านที่เปิดดึกและราคาไม่แรงมาก ถ้าใครเคยปริ้นงานวิจัยช่วยแนะนำด้วย',
-    cats: ['คำถาม / Q&A', 'ชีวิตในมอ / Campus life'], reacts: { like: 9, help: 14, thank: 3, care: 0 } },
+    cats: ['คำถาม / Q&A', 'ชีวิตในมอ / Campus life'], likes: 26 },
   { id: 'p7', important: false, type: 'story', priority: null, role: 'student',
     name: 'Mook Chaiyaporn', meta: 'Fine Arts ปี 4', time: '5 ชั่วโมงที่แล้ว', initials: 'MC', tint: 4,
     title: 'พระอาทิตย์ตกที่อ่างแก้วเมื่อวาน',
     body: 'ยืนดูอยู่ 20 นาที ลมเย็นกว่าอาทิตย์ก่อนเยอะ ถ่ายด้วยฟิล์มหมดอายุปี 2019 · shot on expired film.',
     media: [{ type: 'image', label: 'อ่างแก้วตอนเย็น' }, { type: 'image', label: 'ฝั่งตรงข้ามอ่างแก้ว' }],
     cats: ['ชีวิตในมอ / Campus life'],
-    reacts: { like: 512, help: 3, thank: 22, care: 7 } },
+    likes: 544 },
   { id: 'p8', important: false, type: 'story', priority: null, role: 'student',
     name: 'Bank Lertwong', meta: 'Engineering ปี 1', time: '8 ชั่วโมงที่แล้ว', initials: 'BL', tint: 0,
     title: 'เจอบัตรนักศึกษาตกใกล้หอสมุดกลาง',
     body: 'ชื่อขึ้นต้นด้วย N. รหัส 68… ฝากไว้กับเคาน์เตอร์ยืมคืนชั้น 1 แล้ว เจ้าของไปรับได้เลย แสดงบัตรอื่นยืนยันด้วยนะ',
-    cats: ['ของหาย / Lost & Found'], reacts: { like: 74, help: 156, thank: 63, care: 2 } },
+    cats: ['ของหาย / Lost & Found'], likes: 295 },
   { id: 'p9', important: false, type: 'market', priority: null, role: 'student',
     name: 'Aree Boon', meta: 'Economics ปี 3', time: 'เมื่อวาน', initials: 'AB', tint: 3,
     title: 'ขายจักรยานแม่บ้าน 1,200 บาท ใช้มาปีเดียว',
     body: 'สีครีม ตะกร้าหน้ายังดี เบรกเพิ่งเปลี่ยน รับของที่หอ 40 ปี ต่อรองได้ถ้ารับวันนี้',
     media: [{ type: 'image', label: 'จักรยานมุมหน้า' }, { type: 'image', label: 'ตะกร้าและเบรก' }, { type: 'video', label: 'วิดีโอทดลองปั่น' }],
     cats: ['ซื้อขาย / Marketplace'],
-    reacts: { like: 29, help: 11, thank: 5, care: 0 } },
+    likes: 45 },
   { id: 'p10', important: false, type: 'story', priority: null, role: 'student',
     name: 'Tar Panyawat', meta: 'Mass Communication ปี 2', time: 'เมื่อวาน', initials: 'TP', tint: 5,
     title: 'ดราม่าคิวร้านข้าวมันไก่หน้ามอ ใครเจอเหมือนกันบ้าง',
     body: 'ต่อคิว 20 นาทีแล้วมีคนลัดคิวหน้าตาเฉย เถียงกันเสียงดังหน้าร้านเลย ใครมีคลิปช่วยลงให้ดูหน่อย',
-    cats: ['ชีวิตในมอ / Campus life'], reacts: { like: 880, help: 4, thank: 2, care: 12 }, reports: 3 },
+    cats: ['ชีวิตในมอ / Campus life'], likes: 898, reports: 3 },
 ];
 
 // 100-comment thread: generated so the deep-thread scroll case is real, not faked with filler.

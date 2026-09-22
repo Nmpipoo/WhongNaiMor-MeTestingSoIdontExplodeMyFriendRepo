@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { REACTS, TINTS, type Post, type ReactKey, type ReportStatus } from './data';
+import { TINTS, type Post, type ReportStatus } from './data';
 
 export function avatarStyle(tint: number, size = 38): CSSProperties {
   const [bg, fg] = TINTS[tint % TINTS.length];
@@ -9,8 +9,8 @@ export function avatarStyle(tint: number, size = 38): CSSProperties {
   };
 }
 
-export function reactSum(p: Post, mine?: ReactKey | null) {
-  return REACTS.reduce((a, r) => a + (p.reacts[r.key] || 0) + (mine === r.key ? 1 : 0), 0);
+export function likeCount(p: Post, liked?: boolean) {
+  return p.likes + (liked ? 1 : 0);
 }
 
 export function statusLook(status?: ReportStatus): [string, string] {

@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CATS, COMMENTS, ME, NOTIFS, POSTS, QA, STATUSES,
-  type Comment, type Post, type ReactKey, type ReportStatus,
+  type Comment, type Post, type ReportStatus,
 } from '@/lib/data';
-import { ACCENT_MAP, avatarStyle, reactSum, statusLook } from '@/lib/ui';
+import { ACCENT_MAP, avatarStyle, likeCount, statusLook } from '@/lib/ui';
 import PostCard from './PostCard';
 import PostModal from './PostModal';
 import { ComposeDialog, EditDialog, ReportDialog } from './Dialogs';
@@ -20,7 +20,7 @@ export interface AppState {
   activeId: string | null;
   cat: string | null;
   q: string;
-  reacts: Record<string, ReactKey | null>;
+  likes: Record<string, boolean>;
   cLikes: Record<string, boolean>;
   comments: Record<string, Comment[]>;
   posts: Post[];
@@ -28,10 +28,13 @@ export interface AppState {
   reportStatus: Record<string, ReportStatus>;
   reportReason: Record<string, string>;
   draft: string;
+  composerOpen: boolean;
   replyTo: string | null;
-  pickerFor: string | null;
+  replyDraft: string;
+  openReplies: Record<string, boolean>;
   shown: number;
   composeOpen: boolean;
+  newTitle: string;
   newText: string;
   newCats: string[];
   newMedia: NewMedia[];
@@ -53,11 +56,11 @@ export type SetState = (patch: Partial<AppState> | ((prev: AppState) => Partial<
 
 const INITIAL: AppState = {
   view: 'home', activeId: null, cat: null, q: '',
-  reacts: {}, cLikes: {}, comments: COMMENTS, posts: POSTS, interests: ['เรียน / Academics'],
+  likes: {}, cLikes: {}, comments: COMMENTS, posts: POSTS, interests: ['เรียน / Academics'],
   reportStatus: { p10: 'Open' },
   reportReason: { p10: 'คุกคามหรือใช้ถ้อยคำรุนแรง' },
-  draft: '', replyTo: null, pickerFor: null, shown: 12,
-  composeOpen: false, newText: '', newCats: [], newMedia: [], newImportant: false,
+  draft: '', composerOpen: false, replyTo: null, replyDraft: '', openReplies: {}, shown: 12,
+  composeOpen: false, newTitle: '', newText: '', newCats: [], newMedia: [], newImportant: false,
   reportFor: null, reason: null,
   editFor: null, editTitle: '', editBody: '', editCats: [], editImportant: false,
   notifOpen: false, readNotif: false, toast: null,
@@ -144,7 +147,7 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
     [visible],
   );
 
-  const openPost = (id: string) => set({ activeId: id, notifOpen: false, replyTo: null, pickerFor: null, shown: 12 });
+  const openPost = (id: string) => set({ activeId: id, notifOpen: false, replyTo: null, replyDraft: '', composerOpen: false, shown: 12 });
 
   const setStatus = (id: string, next: ReportStatus) => {
     set((prev) => ({ reportStatus: { ...prev.reportStatus, [id]: next } }));
@@ -159,14 +162,12 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
 
   const cardProps = (p: Post) => ({
     post: p,
-    mine: st.reacts[p.id] ?? null,
+    liked: !!st.likes[p.id],
     commentCount: (st.comments[p.id] || []).length,
     reportStatus: st.reportStatus[p.id],
     isGuest,
     isMod,
-    pickerOpen: st.pickerFor === p.id,
-    onPicker: (open: boolean) => set({ pickerFor: open ? p.id : null }),
-    onReact: (key: ReactKey | null) => set((prev) => ({ reacts: { ...prev.reacts, [p.id]: key }, pickerFor: null })),
+    onLike: () => set((prev) => ({ likes: { ...prev.likes, [p.id]: !prev.likes[p.id] } })),
     onGate: gate,
     onOpen: () => openPost(p.id),
     onEdit: () => openEdit(p.id),
@@ -175,7 +176,7 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
   });
 
   const railAnnounce = st.posts.filter((p) => p.important)
-    .sort((a, b) => (b.priority ? 1 : 0) - (a.priority ? 1 : 0) || reactSum(b) - reactSum(a))
+    .sort((a, b) => (b.priority ? 1 : 0) - (a.priority ? 1 : 0) || b.likes - a.likes)
     .slice(0, 4);
 
   const meInitials = isGuest ? 'G' : ME.initials;
@@ -345,7 +346,7 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
                   >
                     {p.priority === 'urgent' ? 'ประกาศด่วน' : 'ประกาศ'}
                   </span>
-                  <span style={{ fontSize: 10.5, color: 'var(--color-neutral-700)' }}>{reactSum(p, st.reacts[p.id]).toLocaleString()} ความรู้สึก</span>
+                  <span style={{ fontSize: 10.5, color: 'var(--color-neutral-700)' }}>{likeCount(p, st.likes[p.id]).toLocaleString()} ถูกใจ</span>
                 </span>
                 <span style={{ fontSize: 12.5, lineHeight: 1.4, display: 'block', fontWeight: 600 }}>{p.title}</span>
                 <span style={{ fontSize: 11, color: 'var(--color-neutral-700)' }}>{p.name}</span>

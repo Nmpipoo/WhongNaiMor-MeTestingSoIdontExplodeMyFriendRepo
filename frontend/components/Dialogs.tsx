@@ -67,22 +67,23 @@ export function ComposeDialog({ st, set, isMod, meName, meInitials, meAvatar, fl
   });
 
   const submit = () => {
+    const title = st.newTitle.trim();
     const text = st.newText.trim();
+    if (!title) return flash('ยังไม่ได้ใส่หัวเรื่อง');
     if (!text) return flash('ยังไม่มีเนื้อหาโพสต์');
     if (!st.newCats.length) return flash('ต้องเลือกหมวดหมู่อย่างน้อย 1 หมวด');
-    const lines = text.split('\n');
     const imp = st.newImportant && isMod;
     const np: Post = {
       id: nextPostId(), important: imp, type: 'story', priority: null,
       role: isMod ? 'mod' : 'student', name: ME.name,
       meta: isMod ? 'บุคลากร · ผู้ดูแล' : 'Software Engineering ปี 3',
       time: 'เมื่อสักครู่', initials: ME.initials, tint: ME.tint,
-      title: lines[0].slice(0, 70), body: lines.slice(1).join(' ') || text,
+      title, body: text,
       media: st.newMedia.map((m) => ({ type: m.type, label: m.label })),
-      cats: st.newCats, reacts: { like: 0, help: 0, thank: 0, care: 0 },
+      cats: st.newCats, likes: 0,
       notified: imp ? 1204 : 0,
     };
-    set((prev) => ({ posts: [np, ...prev.posts], composeOpen: false, newText: '', newCats: [], newMedia: [], newImportant: false }));
+    set((prev) => ({ posts: [np, ...prev.posts], composeOpen: false, newTitle: '', newText: '', newCats: [], newMedia: [], newImportant: false }));
     flash(imp ? 'เผยแพร่เป็นประกาศและส่งแจ้งเตือนแล้ว' : 'เผยแพร่โพสต์แล้ว');
   };
 
@@ -106,13 +107,28 @@ export function ComposeDialog({ st, set, isMod, meName, meInitials, meAvatar, fl
           </div>
         </div>
 
-        <textarea
-          className="input"
-          value={st.newText}
-          onChange={(e) => set({ newText: e.target.value })}
-          placeholder="บรรทัดแรกคือหัวเรื่อง แล้วเล่ารายละเอียดต่อ… / first line becomes the title"
-          style={{ borderRadius: 16, minHeight: 110, background: 'var(--color-neutral-100)', fontSize: 13.5 }}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={labelStyle}>หัวเรื่อง · title</label>
+          <input
+            className="input"
+            value={st.newTitle}
+            onChange={(e) => set({ newTitle: e.target.value })}
+            maxLength={90}
+            placeholder="สรุปเรื่องนี้สั้น ๆ ใน 1 บรรทัด"
+            style={{ background: 'var(--color-neutral-100)', fontSize: 13.5 }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={labelStyle}>เนื้อหา · body</label>
+          <textarea
+            className="input"
+            value={st.newText}
+            onChange={(e) => set({ newText: e.target.value })}
+            placeholder="เล่ารายละเอียดให้คนอ่านเข้าใจบริบท…"
+            style={{ borderRadius: 16, minHeight: 110, background: 'var(--color-neutral-100)', fontSize: 13.5 }}
+          />
+        </div>
 
         <CatPicker selected={st.newCats} onToggle={(name) => set((prev) => ({ newCats: toggle(prev.newCats, name) }))} />
 

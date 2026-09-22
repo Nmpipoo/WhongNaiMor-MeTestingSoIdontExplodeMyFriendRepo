@@ -78,9 +78,13 @@ img { display: block; max-width: 100%; }
 }
 .btn svg { display: block; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-primary { background: var(--color-accent); color: var(--color-bg); }
+.btn-primary {
+  background: var(--color-accent); color: #fff; font-weight: 600;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-accent-900) 28%, transparent);
+}
 .btn-primary:hover { background: var(--color-accent-600); }
-.btn-primary:active { background: var(--color-accent-700); }
+.btn-primary:active { background: var(--color-accent-700); box-shadow: none; }
+.btn-primary:disabled { box-shadow: none; }
 .btn-secondary { border-color: var(--color-divider); }
 .btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
@@ -102,6 +106,20 @@ textarea.input { min-height: 90px; resize: vertical; }
 .seg {
   display: inline-flex; overflow: hidden;
   border: 1px solid var(--color-divider); border-radius: 999px;
+}
+
+/* — comment composer (flat until focused, like YouTube) — */
+.cmt-input {
+  display: block; width: 100%; padding: 6px 2px; font: inherit; font-size: 13.5px;
+  line-height: 1.5; color: var(--color-text); caret-color: var(--color-accent);
+  background: transparent; border: 0; border-bottom: 1px solid var(--color-divider);
+  border-radius: 0; resize: none; overflow: hidden; min-height: 30px;
+}
+.cmt-input::placeholder { color: var(--color-neutral-600); }
+.cmt-input:hover { border-bottom-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.cmt-input:focus, .cmt-input:focus-visible {
+  outline: none; padding-bottom: 5px;
+  border-bottom: 2px solid var(--color-accent);
 }
 
 /* — tags — */
@@ -136,4 +154,3 @@ body.wnm-locked { overflow: hidden !important; }
 .hov-bg:hover { background: var(--color-accent-100) !important; }
 .hov-border:hover { border-color: var(--color-accent) !important; }
 .hov-color:hover { color: var(--color-accent) !important; }
-.hov-lift:hover { transform: translateY(-2px); }

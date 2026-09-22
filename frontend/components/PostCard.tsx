@@ -1,20 +1,17 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { useRef } from 'react';
-import { ANNOUNCE_CAT, CATS, QA, REACTS, STATUSES, type Post, type ReactKey, type ReportStatus } from '@/lib/data';
-import { avatarStyle, reactSum, statusLook } from '@/lib/ui';
+import { ANNOUNCE_CAT, CATS, QA, STATUSES, type Post, type ReportStatus } from '@/lib/data';
+import { avatarStyle, likeCount, statusLook } from '@/lib/ui';
 
 export interface PostCardProps {
   post: Post;
-  mine: ReactKey | null;
+  liked: boolean;
   commentCount: number;
   reportStatus?: ReportStatus;
   isGuest: boolean;
   isMod: boolean;
-  pickerOpen: boolean;
-  onPicker: (open: boolean) => void;
-  onReact: (key: ReactKey | null) => void;
+  onLike: () => void;
   onGate: () => void;
   onOpen: () => void;
   onEdit: () => void;
@@ -29,8 +26,7 @@ const REPORT_CHIP: Record<ReportStatus, string> = {
 };
 
 export default function PostCard(props: PostCardProps) {
-  const { post: p, mine, commentCount, reportStatus: status, isGuest, isMod, pickerOpen } = props;
-  const hold = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const { post: p, liked, commentCount, reportStatus: status, isGuest, isMod } = props;
 
   const rail = p.priority === 'urgent' ? 'var(--pri)' : p.priority === 'notice' ? 'var(--color-accent)' : null;
   const cats = p.cats || [];
@@ -63,20 +59,7 @@ export default function PostCard(props: PostCardProps) {
   }
 
   const media = p.media || [];
-  const reactSummary = (() => {
-    const shown = REACTS.filter((r) => (p.reacts[r.key] || 0) + (mine === r.key ? 1 : 0) > 0)
-      .sort((a, b) => (p.reacts[b.key] || 0) - (p.reacts[a.key] || 0))
-      .slice(0, 2)
-      .map((r) => r.label);
-    return shown.length ? shown.join(' · ') : 'ยังไม่มีใครแสดงความรู้สึก';
-  })();
-
-  const onHoldStart = () => {
-    if (isGuest) return;
-    clearTimeout(hold.current);
-    hold.current = setTimeout(() => props.onPicker(true), 380);
-  };
-  const onHoldEnd = () => clearTimeout(hold.current);
+  const likes = likeCount(p, liked);
 
   return (
     <article style={{ position: 'relative', overflow: 'hidden', background: 'var(--color-surface)', borderRadius: 16, boxShadow: '0 1px 3px rgba(62,34,89,.09)', border: '1px solid var(--color-divider)', padding: '16px 18px 10px', display: 'flex', flexDirection: 'column', gap: 11 }}>
@@ -122,51 +105,21 @@ export default function PostCard(props: PostCardProps) {
       </div>
 
       <footer style={{ display: 'flex', alignItems: 'center', gap: 4, paddingTop: 8, borderTop: '1px solid var(--color-divider)' }}>
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 auto', minWidth: 0 }}>
-          <button
-            className="btn btn-ghost"
-            style={{ flex: 'none', fontSize: 12.5, padding: '5px 9px', touchAction: 'none', userSelect: 'none', color: mine ? 'var(--color-accent)' : 'var(--color-neutral-700)' }}
-            onClick={() => {
-              clearTimeout(hold.current);
-              if (isGuest) return props.onGate();
-              props.onReact(mine ? null : 'like');
-            }}
-            onPointerDown={onHoldStart}
-            onPointerUp={onHoldEnd}
-            onPointerLeave={onHoldEnd}
-            onContextMenu={(e) => { e.preventDefault(); if (!isGuest) props.onPicker(true); }}
-            title="กดค้างเพื่อเลือกความรู้สึก"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill={mine ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 20.4l-1.5-1.36C5.4 14.4 2.5 11.8 2.5 8.6A4.6 4.6 0 0 1 7.1 4c1.7 0 3.2.9 4.9 3 1.7-2.1 3.2-3 4.9-3a4.6 4.6 0 0 1 4.6 4.6c0 3.2-2.9 5.8-8 10.44z" />
-            </svg>
-            {reactSum(p, mine)}
-          </button>
-          <span style={{ fontSize: 12, color: 'var(--color-neutral-600)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reactSummary}</span>
-
-          {pickerOpen && (
-            <div
-              style={{ position: 'absolute', left: 0, bottom: 'calc(100% + 8px)', zIndex: 12, display: 'flex', gap: 4, padding: 6, borderRadius: 999, background: 'var(--color-surface)', boxShadow: 'var(--shadow-lg)', animation: 'wnm-pop .14s ease both' }}
-              onPointerLeave={() => props.onPicker(false)}
-            >
-              {REACTS.map((r) => {
-                const active = mine === r.key;
-                return (
-                  <button
-                    key={r.key}
-                    className="btn hov-lift"
-                    title={r.label}
-                    onClick={() => props.onReact(active ? null : r.key)}
-                    style={{ fontSize: 12.5, padding: '6px 13px', whiteSpace: 'nowrap', transition: 'transform .12s ease', background: active ? 'var(--color-accent)' : 'var(--color-neutral-100)', color: active ? '#fff' : 'var(--color-neutral-800)' }}
-                  >
-                    <span style={{ width: 9, height: 9, borderRadius: 999, display: 'inline-block', marginRight: 6, background: r.dot }} />
-                    {r.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <button
+          className="btn btn-ghost"
+          style={{ flex: 'none', fontSize: 12.5, padding: '5px 9px', color: liked ? 'var(--color-accent)' : 'var(--color-neutral-700)' }}
+          onClick={() => (isGuest ? props.onGate() : props.onLike())}
+          aria-pressed={liked}
+          title={liked ? 'เลิกถูกใจ' : 'ถูกใจ'}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill={liked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20.4l-1.5-1.36C5.4 14.4 2.5 11.8 2.5 8.6A4.6 4.6 0 0 1 7.1 4c1.7 0 3.2.9 4.9 3 1.7-2.1 3.2-3 4.9-3a4.6 4.6 0 0 1 4.6 4.6c0 3.2-2.9 5.8-8 10.44z" />
+          </svg>
+          ถูกใจ
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--color-neutral-600)', flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {likes > 0 ? `${likes.toLocaleString()} คนถูกใจ` : 'ยังไม่มีใครถูกใจ'}
+        </span>
 
         <button className="btn btn-ghost" style={{ flex: 'none', fontSize: 12.5, color: 'var(--color-neutral-700)', whiteSpace: 'nowrap' }} onClick={props.onOpen}>
           ความเห็น {commentCount}
