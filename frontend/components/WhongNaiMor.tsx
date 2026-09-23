@@ -73,6 +73,8 @@ interface Props {
   laneMode?: 'single' | 'two';
 }
 
+const API_URL = "http://localhost:3030";
+
 export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'student', laneMode = 'single' }: Props) {
   const [st, setRaw] = useState<AppState>(INITIAL);
   const set: SetState = useCallback((patch) => {
@@ -92,6 +94,55 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
     toastTimer.current = setTimeout(() => set({ toast: null }), 2400);
   }, [set]);
   const gate = () => flash('ผู้ใช้ภายนอกอ่านได้เท่านั้น · ต้องเข้าสู่ระบบด้วยบัญชี @cmu.ac.th');
+
+  function getTimeAgo(stamp: Date | string) {
+    const now = new Date().getTime();
+    const publishedDate = new Date(stamp).getTime();
+    const diffInSeconds = Math.floor((now - publishedDate) / 1000);
+    if (diffInSeconds < 60) {
+        return diffInSeconds + ` วินาทีที่แล้ว`;
+    } else if (diffInSeconds < (60 * 60)) {
+        const minutes = Math.floor(diffInSeconds / (60));
+        return minutes + ` นาทีที่แล้ว`;
+    } else if (diffInSeconds < (60 * 60 * 24)) {
+        const hours = Math.floor(diffInSeconds / (60 * 60));
+        return hours + ` ชั่วโมงที่แล้ว`;
+    } else if (diffInSeconds < (60 * 60 * 24 * 30)) {
+        const days = Math.floor(diffInSeconds / (60 * 60 * 24));
+        return days + ` วันที่แล้ว`;
+    } else if (diffInSeconds < (60 * 60 * 24 * 30 * 12)) {
+        const months = Math.floor(diffInSeconds / (60 * 60 * 24 * 30));
+        return months + ` เดือนที่แล้ว`;
+    } else {
+        const years = Math.floor(diffInSeconds / (60 * 60 * 24 * 30 * 12));
+        return years + ` ปีที่แล้ว`;
+    }
+  }
+
+  // Load post
+  useEffect(() => {
+    fetch(`${API_URL}/post/fetch`).then((posts) => {
+      posts.json().then((ps) => {
+        let frontendPosts: Post[] = [];
+        ps.forEach((p: any) => {
+          frontendPosts.push({
+            id: p.id,
+            important: p.is_important,
+            name: p.author_name,
+            time: getTimeAgo(p.created_at),
+            initials: p.author_name.slice(0, 2),
+            title: p.title,
+            body: p.content,
+            role: p.role,
+            cats: p.categories.map((c: any) => c.name),
+            likes: p.reaction_count,
+            media: p.medias.map((m: any) => m.file_url),
+          });
+        })
+        set({ posts: frontendPosts });
+      });
+    }).catch((err) => console.error(err));
+  }, [])
 
   // Accent palette
   useEffect(() => {

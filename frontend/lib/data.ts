@@ -8,22 +8,24 @@ export interface Media { type: 'image' | 'video'; label: string }
 export interface Post {
   id: string;
   important: boolean;
-  type: 'announce' | 'question' | 'story' | 'market';
-  priority: 'urgent' | 'notice' | null;
-  role: Role;
   name: string;
-  meta: string;
   time: string;
   initials: string;
-  tint: number;
   title: string;
   body: string;
+  role: Role;
   cats: string[];
   likes: number;
   media?: Media[];
   notified?: number;
   reports?: number;
   edited?: string;
+
+  // belows are out of scope for now.
+  type?: 'announce' | 'question' | 'story' | 'market';
+  priority?: 'urgent' | 'notice' | null;
+  meta?: string;
+  tint?: number;
 }
 
 export interface Reply { id: string; a: string; i: string; t: number; time: string; text: string; likes?: number }

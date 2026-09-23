@@ -1,5 +1,6 @@
 export type Post = {
     id: string;
+    title: string;
     user_id: string;
     content: any;
     category_id: string[];
@@ -53,7 +54,6 @@ export type Report = {
     user_id: string;
     reason: string;
     status: "Open" | "Reviewed" | "Dismissed";
-    reviewed_by?: string;
     reviewed_at?: Date;
     created_at?: Date;
 }

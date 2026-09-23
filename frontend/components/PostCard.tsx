@@ -66,7 +66,7 @@ export default function PostCard(props: PostCardProps) {
       {rail && <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: rail }} />}
 
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 11, flexWrap: 'wrap' }}>
-        <div style={avatarStyle(p.tint)}>{p.initials}</div>
+        <div style={avatarStyle(p.tint ?? 0)}>{p.initials}</div>
         <div style={{ minWidth: 190, flex: '1 1 210px' }}>
           <span style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.3, display: 'block' }}>
             {p.name}

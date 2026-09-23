@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import supabase from "./db";
+import cors from 'cors';
 
 // Routes
 import comment from './endpoints/comment';
@@ -8,32 +9,36 @@ import user from './endpoints/user';
 import report from './endpoints/report';
 
 const app = express();
-const PORT = 3000;
+const PORT = 3030;
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-app.use("*splat", async (req: Request, res: Response, next: NextFunction) => {
-    // headers -> authorization: "Bearer <token>"
-    const access_token = req.headers.authorization?.split(" ")[1];
-    const user = await supabase.auth.getUser(access_token)
-    if(user && user.data.user) {
-        req.user = user.data.user;
-        req.userId = user.data.user.id;
-        next();
-    } else {
-        res.status(401).json({ message: "Unauthorized request" });
-    }
-})
+app.use(cors({
+    origin: 'http://localhost:3000'
+}))
 
-app.use("/", comment);
+// app.use("*splat", async (req: Request, res: Response, next: NextFunction) => {
+//     // headers -> authorization: "Bearer <token>"
+//     const access_token = req.headers.authorization?.split(" ")[1];
+//     const user = await supabase.auth.getUser(access_token)
+//     if(user && user.data.user) {
+//         req.user = user.data.user;
+//         req.userId = user.data.user.id;
+//         next();
+//     } else {
+//         res.status(401).json({ message: "Unauthorized request" });
+//     }
+// })
+
 app.use("/", post);
+app.use("/", comment);
 app.use("/", user);
 app.use("/", report);
 
 app.listen(PORT, () => {
     console.log("Server running on port " + PORT);
-    console.log("http://localhost:3000");
+    console.log("http://localhost:3030");
 })
 
 // TODO next [DOEN]
@@ -49,7 +54,7 @@ app.listen(PORT, () => {
 // Post search fetch ⏰
 // Post that match user interest category fetch. ⏰
 
-// ⏰ is postponed until the team decide on the following.
+// ⏰ is postponed until the team decide on the following. [DECIDED ON EVERYTHING]
 // 1. Is the report reviewer really matter? Projection: Reviewer is highly unlikely to be necessary.
 // 2. Do we make the title field separately when creating a post? (Now, the title is the first line of the post content.) Projection: Highly likely to add title field.
 // 3. Does the search render real-time on what is actually on the frontend? Projection: idk.

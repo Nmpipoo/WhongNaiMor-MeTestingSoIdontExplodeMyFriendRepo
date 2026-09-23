@@ -32,14 +32,14 @@ async function uploadPostMedia(pid: Post['id'], m: any, mt: "images" | "videos")
 router.post("/post/create", 
     upload.fields([{ name: "images", maxCount: 10 }, { name: "videos", maxCount: 1 }]), 
     async (req: Request, res: Response) => {
-    const { id, user_id, content, is_important, category_id }: Post = req.body;
+    const { id, user_id, title, content, is_important, category_id }: Post = req.body;
 
     // const postdata: Post = req.body;
     try {
-        // INSERT INTO posts VALUES(id, user_id, content, is_important);
+        // INSERT INTO posts VALUES(id, user_id, title, content, is_important);
         const { data, error } = await supabase
             .from('posts')
-            .insert({ id, user_id, content, is_important })
+            .insert({ id, user_id, title, content, is_important })
             // .insert(postdata)
             .select()
             .single();
