@@ -4,14 +4,14 @@ import { Comment } from "../model"
 
 const router = Router();
 
-router.get("/comment/fetch/:cid", async (req: Request, res: Response) => {
-    const { cid } = req.params;
+router.get("/comment/fetch/:pid", async (req: Request, res: Response) => {
+    const { pid } = req.params;
     try {
         // SELECT * FROM comments WHERE id = cid;
         const { data, error } = await supabase
-            .from("comments")
+            .from("v_comments")
             .select("*")
-            .eq("id", cid);
+            .eq("post_id", pid);
         if(error) throw error;
         res.status(200).json(data);
     } catch (error: any) {

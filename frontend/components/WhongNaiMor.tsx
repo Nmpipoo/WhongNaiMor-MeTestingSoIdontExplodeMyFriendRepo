@@ -119,8 +119,9 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
     }
   }
 
-  // Load post
+  // Load post (comment count doesn't show)
   useEffect(() => {
+    // return;
     fetch(`${API_URL}/post/fetch`).then((posts) => {
       posts.json().then((ps) => {
         let frontendPosts: Post[] = [];
@@ -143,6 +144,69 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
       });
     }).catch((err) => console.error(err));
   }, [])
+
+  // load comment per post
+  useEffect(() => {
+    (async() => {
+      const cress = await Promise.all(st.posts.map((p) => fetch(`${API_URL}/comment/fetch/${p.id}`)))
+      let fetchedComments = await Promise.all(cress.map((c) => c.json()))
+      
+      interface CommentNode {
+        id: string | number;
+        post_id: string;
+        parent_comment_id: string | number | null;
+        display_name: string;
+        role: string;
+        content: string;
+        created_at: string;
+        replies?: CommentNode[];
+      }
+      const rootComments: CommentNode[] & Comment[] = [];
+      const postComments: { [pid: string]: CommentNode[] & Comment[] } = {};
+
+      for(let pcs of fetchedComments) {
+        if(pcs.length === 0) continue
+        pcs = pcs.map((c: CommentNode) => ({
+          post_id: c.post_id,
+          id: c.id,
+          parent_comment_id: c.parent_comment_id,
+          a: c.display_name,
+          r: c.role,
+          i: c.display_name.slice(0, 2),
+          time: getTimeAgo(c.created_at),
+          text: c.content,
+          likes: 0, //placeholder
+          t: 3, //placeholder
+        }))
+
+        const map = new Map();
+
+        // Step 1: Clone nodes into map with initialized empty replies array
+        pcs.forEach((comment: Comment & CommentNode) => {
+          map.set(comment.id, { ...comment, replies: [] });
+        });
+
+        // Step 2: Assemble parent-child linkages in a single pass O(N)
+        pcs.forEach((comment: Comment & CommentNode) => {
+          const node = map.get(comment.id)!;
+          
+          if (comment.parent_comment_id !== null && map.has(comment.parent_comment_id)) {
+            // Attach to parent's replies array
+            map.get(comment.parent_comment_id)!.replies!.push(node);
+          } else {
+            // Top-level root comment
+            rootComments.push(node);
+          }
+        });
+        // console.log(rootComments[0].id)
+        postComments[pcs[0].post_id] = rootComments.map((rc) => rc) as CommentNode[] & Comment[];
+        // console.log(postComments[pcs[0].post_id][0].id, pcs[0].post_id)
+        rootComments.length = 0;
+      }
+      // console.log(postComments['33333333-3333-3333-3333-333333333332'][0].id)
+      set({ comments: postComments });
+    })()
+  }, [st.posts]);
 
   // Accent palette
   useEffect(() => {
