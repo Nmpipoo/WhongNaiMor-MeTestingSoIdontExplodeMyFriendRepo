@@ -49,6 +49,7 @@ export interface AppState {
   notifOpen: boolean;
   readNotif: boolean;
   toast: string | null;
+  CATS: { id: any; name: string; pri: number; dot: string }[];
   w: number;
 }
 
@@ -64,6 +65,7 @@ const INITIAL: AppState = {
   reportFor: null, reason: null,
   editFor: null, editTitle: '', editBody: '', editCats: [], editImportant: false,
   notifOpen: false, readNotif: false, toast: null,
+  CATS: CATS,
   w: 1280,
 };
 
@@ -118,6 +120,20 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
         return years + ` ปีที่แล้ว`;
     }
   }
+
+  // preload categories
+  useEffect(() => {
+    (async () => {
+      const newCatsRes = await fetch(`${API_URL}/misc/categories`);
+      const newCats = await newCatsRes.json();
+      
+      setRaw((prev) => ({ ...prev, CATS: newCats.map((c: any) => ({ id: c.id, name: c.category_name, pri: c.priority, dot: "#f91013" /* <-- place holder cats color */ })) }));
+    })()
+  }, [])
+
+  useEffect(() => {
+    console.log(st.CATS);
+  }, [st.CATS])
 
   // Load post (comment count doesn't show)
   useEffect(() => {
@@ -276,6 +292,7 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
   };
 
   const cardProps = (p: Post) => ({
+    CATS: st.CATS,
     post: p,
     liked: !!st.likes[p.id],
     commentCount: (st.comments[p.id] || []).length,
@@ -375,7 +392,7 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
             : { display: 'flex', flexDirection: 'row', gap: 6, flex: '1 1 240px', minWidth: 0, overflowX: 'auto', padding: '2px 0', alignItems: 'center' }}
           >
             {wide && <span style={{ fontSize: 9.5, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--color-neutral-600)', padding: '0 6px 7px' }}>หมวดหมู่</span>}
-            {CATS.map((c) => {
+            {st.CATS.map((c) => {
               const on = st.cat === c.name;
               return (
                 <button

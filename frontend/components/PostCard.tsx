@@ -5,6 +5,7 @@ import { ANNOUNCE_CAT, CATS, QA, STATUSES, type Post, type ReportStatus } from '
 import { avatarStyle, likeCount, statusLook } from '@/lib/ui';
 
 export interface PostCardProps {
+  CATS: typeof CATS;
   post: Post;
   liked: boolean;
   commentCount: number;
@@ -26,7 +27,7 @@ const REPORT_CHIP: Record<ReportStatus, string> = {
 };
 
 export default function PostCard(props: PostCardProps) {
-  const { post: p, liked, commentCount, reportStatus: status, isGuest, isMod } = props;
+  const { post: p, liked, commentCount, reportStatus: status, isGuest, isMod, CATS } = props;
 
   const rail = p.priority === 'urgent' ? 'var(--pri)' : p.priority === 'notice' ? 'var(--color-accent)' : null;
   const cats = p.cats || [];

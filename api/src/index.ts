@@ -7,6 +7,7 @@ import comment from './endpoints/comment';
 import post from './endpoints/post';
 import user from './endpoints/user';
 import report from './endpoints/report';
+import misc from './endpoints/misc';
 
 const app = express();
 const PORT = 3030;
@@ -18,23 +19,11 @@ app.use(cors({
     origin: 'http://localhost:3000'
 }))
 
-// app.use("*splat", async (req: Request, res: Response, next: NextFunction) => {
-//     // headers -> authorization: "Bearer <token>"
-//     const access_token = req.headers.authorization?.split(" ")[1];
-//     const user = await supabase.auth.getUser(access_token)
-//     if(user && user.data.user) {
-//         req.user = user.data.user;
-//         req.userId = user.data.user.id;
-//         next();
-//     } else {
-//         res.status(401).json({ message: "Unauthorized request" });
-//     }
-// })
-
 app.use("/", post);
 app.use("/", comment);
 app.use("/", user);
 app.use("/", report);
+app.use("/", misc);
 
 app.listen(PORT, () => {
     console.log("Server running on port " + PORT);

@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 import { CATS, ME, REASONS, STATUSES, type Post, type ReportStatus } from '@/lib/data';
 import { chipStyle, statusLook } from '@/lib/ui';
 import type { AppState, SetState } from './WhongNaiMor';
+import { useAuthContext } from './AuthContext';
 
 const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
@@ -15,12 +16,14 @@ const trackStyle = (on: boolean, enabled = true): CSSProperties => ({
   background: on ? 'var(--color-accent)' : 'var(--color-neutral-300)', opacity: enabled ? 1 : 0.45,
 });
 
-function CatPicker({ selected, onToggle }: { selected: string[]; onToggle: (name: string) => void }) {
+const API_URL = "http://localhost:3030";
+
+function CatPicker({ cats, selected, onToggle }: { cats: typeof CATS, selected: string[]; onToggle: (name: string) => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <label style={labelStyle}>หมวดหมู่ · ต้องเลือกอย่างน้อย 1 หมวด</label>
       <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-        {CATS.map((c) => (
+        {cats.map((c) => (
           <button key={c.name} className="tag" onClick={() => onToggle(c.name)} style={chipStyle(selected.includes(c.name))}>
             {c.name.split(' / ')[0]}
           </button>
@@ -59,6 +62,8 @@ interface ComposeProps {
 }
 
 export function ComposeDialog({ st, set, isMod, meName, meInitials, meAvatar, flash, nextPostId, nextMediaId }: ComposeProps) {
+  const { user, session } = useAuthContext();
+
   const close = () => set({ composeOpen: false });
 
   const addMedia = (type: 'image' | 'video') => set((prev) => {
@@ -66,25 +71,43 @@ export function ComposeDialog({ st, set, isMod, meName, meInitials, meAvatar, fl
     return { newMedia: [...prev.newMedia, { id: nextMediaId(), type, label: type === 'video' ? `วิดีโอ ${n}.mp4` : `รูปภาพ ${n}.jpg` }] };
   });
 
-  const submit = () => {
+  const submit = async () => {
     const title = st.newTitle.trim();
     const text = st.newText.trim();
     if (!title) return flash('ยังไม่ได้ใส่หัวเรื่อง');
     if (!text) return flash('ยังไม่มีเนื้อหาโพสต์');
     if (!st.newCats.length) return flash('ต้องเลือกหมวดหมู่อย่างน้อย 1 หมวด');
     const imp = st.newImportant && isMod;
-    const np: Post = {
-      id: nextPostId(), important: imp, type: 'story', priority: null,
-      role: isMod ? 'mod' : 'student', name: ME.name,
-      meta: isMod ? 'บุคลากร · ผู้ดูแล' : 'Software Engineering ปี 3',
-      time: 'เมื่อสักครู่', initials: ME.initials, tint: ME.tint,
-      title, body: text,
-      media: st.newMedia.map((m) => ({ type: m.type, label: m.label })),
-      cats: st.newCats, likes: 0,
-      notified: imp ? 1204 : 0,
-    };
-    set((prev) => ({ posts: [np, ...prev.posts], composeOpen: false, newTitle: '', newText: '', newCats: [], newMedia: [], newImportant: false }));
+    // const np: Post = {
+    //   id: nextPostId(), important: imp, type: 'story', priority: null,
+    //   role: isMod ? 'mod' : 'student', name: ME.name,
+    //   meta: isMod ? 'บุคลากร · ผู้ดูแล' : 'Software Engineering ปี 3',
+    //   time: 'เมื่อสักครู่', initials: ME.initials, tint: ME.tint,
+    //   title, body: text,
+    //   media: st.newMedia.map((m) => ({ type: m.type, label: m.label })),
+    //   cats: st.newCats, likes: 0,
+    //   notified: imp ? 1204 : 0,
+    // };
+    // console.log(st.newCats.map((c) => st.CATS.find((x) => x.name === c)?.id).filter((x): x is string => !!x));
+    const res = await fetch(`${API_URL}/post/create`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`
+      },
+      body: JSON.stringify({
+        user_id: user?.id,
+        title,
+        content: text,
+        is_important: imp,
+        category_id: st.newCats.map((c) => st.CATS.find((x) => x.name === c)?.id).filter((x): x is string => !!x),
+      })
+    })
+    // console.log(res.status)
+    // console.log(await res.json())
+    // set((prev) => ({ posts: [np, ...prev.posts], composeOpen: false, newTitle: '', newText: '', newCats: [], newMedia: [], newImportant: false }));
     flash(imp ? 'เผยแพร่เป็นประกาศและส่งแจ้งเตือนแล้ว' : 'เผยแพร่โพสต์แล้ว');
+    setTimeout(() => window.location.reload(), 1000); // <== find a better way to refresh after posted.
   };
 
   const importantNote = isMod
@@ -130,7 +153,7 @@ export function ComposeDialog({ st, set, isMod, meName, meInitials, meAvatar, fl
           />
         </div>
 
-        <CatPicker selected={st.newCats} onToggle={(name) => set((prev) => ({ newCats: toggle(prev.newCats, name) }))} />
+        <CatPicker cats={st.CATS} selected={st.newCats} onToggle={(name) => set((prev) => ({ newCats: toggle(prev.newCats, name) }))} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -240,7 +263,7 @@ export function EditDialog({ st, set, flash, setStatus }: EditProps) {
           <textarea className="input" value={st.editBody} onChange={(e) => set({ editBody: e.target.value })} style={{ borderRadius: 16, minHeight: 120, background: 'var(--color-neutral-100)', fontSize: 13.5 }} />
         </div>
 
-        <CatPicker selected={st.editCats} onToggle={(name) => set((prev) => ({ editCats: toggle(prev.editCats, name) }))} />
+        <CatPicker cats={st.CATS} selected={st.editCats} onToggle={(name) => set((prev) => ({ editCats: toggle(prev.editCats, name) }))} />
 
         {status && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7, background: 'var(--peach)', borderRadius: 14, padding: '12px 14px' }}>

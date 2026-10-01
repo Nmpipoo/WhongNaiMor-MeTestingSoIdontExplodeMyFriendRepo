@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { Post } from "../model";
 import supabase from "../db";
 import path from "path";
+import { auth } from "../middleware";
 
 const router = Router();
 const upload = multer({
@@ -30,16 +31,17 @@ async function uploadPostMedia(pid: Post['id'], m: any, mt: "images" | "videos")
 }
 
 router.post("/post/create", 
+    auth,
     upload.fields([{ name: "images", maxCount: 10 }, { name: "videos", maxCount: 1 }]), 
     async (req: Request, res: Response) => {
-    const { id, user_id, title, content, is_important, category_id }: Post = req.body;
+    const { user_id, title, content, is_important, category_id }: Post = req.body;
 
     // const postdata: Post = req.body;
     try {
         // INSERT INTO posts VALUES(id, user_id, title, content, is_important);
         const { data, error } = await supabase
             .from('posts')
-            .insert({ id, user_id, title, content, is_important })
+            .insert({ user_id, title, content, is_important })
             // .insert(postdata)
             .select()
             .single();
@@ -55,8 +57,8 @@ router.post("/post/create",
         if (cderr) throw cderr;
         
         if(req.files) {
-            const uploadedImgs = await Promise.all(req.files?['images']: [].map((img) => uploadPostMedia(id, img, "images")));
-            const uploadedVids = await Promise.all(req.files?['images']: [].map((img) => uploadPostMedia(id, img, "videos")));
+            const uploadedImgs = await Promise.all(req.files?['images']: [].map((img) => uploadPostMedia(data.id, img, "images")));
+            const uploadedVids = await Promise.all(req.files?['videos']: [].map((vid) => uploadPostMedia(data.id, vid, "videos")));
 
             const imgsURL = uploadedImgs.map((img) => {
                 // Get public URL
@@ -77,7 +79,7 @@ router.post("/post/create",
             const { data: data2, error: error2 } = await supabase
                 .from('posts')
                 .update({ media: [...imgsURL, ...vidsURL] })
-                .eq('id', id);
+                .eq('id', data.id);
             
             if (error2) throw error2;
         }

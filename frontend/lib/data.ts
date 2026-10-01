@@ -37,15 +37,15 @@ export const TINTS: [string, string][] = [
 ];
 
 // Category rows are seeded by the dev team only (CategoryName + Priority).
-export const CATS = [
-  { name: 'ประกาศ / Announcements', pri: 1, dot: '#7d50a8' },
-  { name: 'คำถาม / Q&A', pri: 2, dot: '#cd7e9f' },
-  { name: 'ของหาย / Lost & Found', pri: 2, dot: '#c9603f' },
-  { name: 'หอพัก / Housing', pri: 3, dot: '#5f8f5a' },
-  { name: 'เรียน / Academics', pri: 3, dot: '#3f7ea8' },
-  { name: 'งาน/ทุน / Careers', pri: 3, dot: '#c9913f' },
-  { name: 'ซื้อขาย / Marketplace', pri: 4, dot: '#9b73c4' },
-  { name: 'ชีวิตในมอ / Campus life', pri: 5, dot: '#a2988f' },
+export const CATS: { id: any; name: string; pri: number; dot: string }[] = [
+    { id: 1, name: 'ประกาศ / Announcements', pri: 1, dot: '#7d50a8' },
+    { id: 2, name: 'คำถาม / Q&A', pri: 2, dot: '#cd7e9f' },
+    { id: 3, name: 'ของหาย / Lost & Found', pri: 2, dot: '#c9603f' },
+    { id: 4, name: 'หอพัก / Housing', pri: 3, dot: '#5f8f5a' },
+    { id: 5, name: 'เรียน / Academics', pri: 3, dot: '#3f7ea8' },
+    { id: 6, name: 'งาน/ทุน / Careers', pri: 3, dot: '#c9913f' },
+    { id: 7, name: 'ซื้อขาย / Marketplace', pri: 4, dot: '#9b73c4' },
+    { id: 8, name: 'ชีวิตในมอ / Campus life', pri: 5, dot: '#a2988f' },
 ];
 
 export const REASONS = [
