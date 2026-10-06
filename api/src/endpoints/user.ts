@@ -3,29 +3,36 @@ import supabase from '../db';
 
 const router = Router();
 
-async function getUserData(req: Request, res: Response, uid: string) {
+export async function getUserData(uid: string) {
+    //SELECT * FROM user WHERE uid = uid;
+    const { data, error } = await supabase
+        // .from("user")
+        .from("v_user_all_data") // more data -> user interests
+        .select("*")
+        .eq("uid", uid)
+        .single();
+
+    if (error) throw error;
+    return data
+}
+
+router.get('/user/current/fetch', async (req, res) => {
     try {
-        //SELECT * FROM user WHERE uid = uid;
-        const { data, error } = await supabase
-            // .from("user")
-            .from("v_user_all_data") // more data -> user interests
-            .select("*")
-            .eq("uid", uid);
- 
-        if (error) throw error;
+        const data = await getUserData(req.userId!);
         res.status(200).json(data);
     } catch (error: any) {
         res.status(400).json({ error: error.message });
     }
-}
-
-router.get('/user/current/fetch', async (req, res) => {
-    getUserData(req, res, req.userId!);
 })
 
 router.get('/user/:uid/fetch', async (req, res) => {
-    const { uid } = req.params;
-    getUserData(req, res, uid);
+    try {
+        const { uid } = req.params;
+        const data = await getUserData(uid);
+        res.status(200).json(data);
+    } catch (error: any) {
+        res.status(400).json({ error: error.message });
+    }
 })
 
 //considering letting template user creation in prototype stage.

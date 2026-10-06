@@ -1,15 +1,20 @@
 import { Request, Response, Router } from "express";
 import supabase from "../db";
 import { Report } from "../model";
+import { auth } from "../middleware";
+import { getUserData } from "./user";
 
 const router = Router();
 
-router.get("/report/fetch", async (req: Request, res: Response) => {
+router.get("/report/fetch", auth, async (req: Request, res: Response) => {
     try {
         // SELECT * FROM reports;
+        const userData = await getUserData(req.userId!);
+        if(!userData.is_mod) return res.status(403).json({ message: "Only mods are allowed to view reports." });
         const { data, error } = await supabase
             .from("reports")
-            .select("*");
+            .select("*")
+            ;
         if(error) throw error;
         res.status(200).json(data);
     } catch (error: any) {
@@ -17,7 +22,7 @@ router.get("/report/fetch", async (req: Request, res: Response) => {
     }
 });
 
-router.post("/report/createticket", async (req: Request, res: Response) => {
+router.post("/report/createticket", auth, async (req: Request, res: Response) => {
     const reportData: Report = {
         post_id: req.body.post_id,
         user_id: req.body.user_id,
@@ -37,7 +42,7 @@ router.post("/report/createticket", async (req: Request, res: Response) => {
     }
 });
 
-router.put("/report/update/:rid", async (req: Request, res: Response) => {
+router.put("/report/update/:rid", auth, async (req: Request, res: Response) => {
     const { rid } = req.params;
     const { status, reviewer } = req.body;
 
@@ -45,6 +50,10 @@ router.put("/report/update/:rid", async (req: Request, res: Response) => {
     // if (reviewer !== req.userId) res.status(401).json({ message: "You are not allowed to review this report." });
 
     try {
+
+        const userData = await getUserData(req.userId!);
+        if(!userData.is_mod) return res.status(403).json({ message: "Only mods are allowed to review and update reports." });
+
         // UPDATE reports SET status = status WHERE id = rid;
         const { data, error } = await supabase
             .from("reports")

@@ -1,6 +1,7 @@
 import { Request, Response, Router } from "express";
 import supabase from "../db";
 import { Comment } from "../model"
+import { auth } from "../middleware";
 
 const router = Router();
 
@@ -19,7 +20,7 @@ router.get("/comment/fetch/:pid", async (req: Request, res: Response) => {
     }
 })
 
-router.post("/comment/:pid", async (req: Request, res: Response) => {
+router.post("/comment/:pid", auth, async (req: Request, res: Response) => {
     const { pid } = req.params;
     const commentData: Comment = {
         post_id: pid as string,
@@ -39,7 +40,7 @@ router.post("/comment/:pid", async (req: Request, res: Response) => {
     }
 })
 
-router.post("/comment/:pid/replyto/:cid", async (req: Request, res: Response) => {
+router.post("/comment/:pid/replyto/:cid", auth, async (req: Request, res: Response) => {
     const { pid, cid } = req.params;
     const commentData: Comment = {
         parent_comment_id: cid as string,
@@ -61,7 +62,7 @@ router.post("/comment/:pid/replyto/:cid", async (req: Request, res: Response) =>
 })
 
 // RPC this one.
-router.post("/comment/:cid/react", async (req: Request, res: Response) => {
+router.post("/comment/:cid/react", auth, async (req: Request, res: Response) => {
     const { cid } = req.params;
     const { reaction_type } = req.body;
     try {

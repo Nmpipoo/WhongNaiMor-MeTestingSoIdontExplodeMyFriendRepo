@@ -11,3 +11,10 @@ export async function mockSignIn() {
         password: "testnat"
     })
 }
+
+export async function mockModSignIn() {
+    await supabase.auth.signInWithPassword({
+        email: "admin_mod@cmu.ac.th",
+        password: "testadmin"
+    })
+}
