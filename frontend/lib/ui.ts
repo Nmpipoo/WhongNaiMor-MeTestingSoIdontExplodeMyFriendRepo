@@ -9,10 +9,6 @@ export function avatarStyle(tint: number, size = 38): CSSProperties {
   };
 }
 
-export function likeCount(p: Post, liked?: boolean) {
-  return p.likes + (liked ? 1 : 0);
-}
-
 export function statusLook(status?: ReportStatus): [string, string] {
   switch (status) {
     case 'Open': return ['#f2c6b6', '#6f2f14'];

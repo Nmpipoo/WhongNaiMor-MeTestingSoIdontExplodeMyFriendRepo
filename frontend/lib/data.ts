@@ -3,7 +3,22 @@ import type { CSSProperties } from 'react';
 export type Role = 'org' | 'staff' | 'mod' | 'student';
 export type ReportStatus = 'Open' | 'Reviewed' | 'Dismissed';
 
-export interface Media { type: 'image' | 'video'; label: string }
+// Mirrors the Postgres enum public.reaction_type (see api/src/reactions.ts).
+export const REACTIONS = ['like', 'love', 'haha', 'sad', 'angry', 'care'] as const;
+export type ReactionType = typeof REACTIONS[number];
+
+/** Emoji + Thai label for each reaction, in picker order. */
+export const REACTION_LOOK: Record<ReactionType, { icon: string; label: string }> = {
+  like: { icon: '👍', label: 'ถูกใจ' },
+  love: { icon: '❤️', label: 'รักเลย' },
+  haha: { icon: '😄', label: 'ฮา' },
+  sad: { icon: '😢', label: 'เศร้า' },
+  angry: { icon: '😠', label: 'โกรธ' },
+  care: { icon: '🤗', label: 'ห่วงใย' },
+};
+
+/** `url` is absent on the mock rows below and present on anything from the API. */
+export interface Media { type: 'image' | 'video'; label: string; url?: string }
 
 export interface Post {
   id: string;
@@ -15,7 +30,8 @@ export interface Post {
   body: string;
   role: Role;
   cats: string[];
-  likes: number;
+  likes: number;              // total reactions, authoritative value from the server
+  myReaction?: ReactionType | null;
   media?: Media[];
   notified?: number;
   reports?: number;
@@ -28,7 +44,10 @@ export interface Post {
   tint?: number;
 }
 
-export interface Reply { id: string; a: string; i: string; t: number; time: string; text: string; likes?: number }
+export interface Reply {
+  id: string; a: string; i: string; t: number; time: string; text: string;
+  likes?: number; myReaction?: ReactionType | null;
+}
 export interface Comment extends Reply { r: Role; likes: number; replies: Reply[] }
 
 export const TINTS: [string, string][] = [

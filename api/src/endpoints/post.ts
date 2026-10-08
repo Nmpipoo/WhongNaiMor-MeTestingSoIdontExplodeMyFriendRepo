@@ -4,7 +4,10 @@ import crypto from "crypto";
 import { Post } from "../model";
 import supabase from "../db";
 import path from "path";
-import { auth } from "../middleware";
+import { auth, optionalAuth } from "../middleware";
+import {
+    POST_TARGET, REACTION_TYPES, isReactionType, myReactions, setReaction,
+} from "../reactions";
 
 const router = Router();
 const upload = multer({
@@ -12,22 +15,29 @@ const upload = multer({
     storage: multer.memoryStorage(),
 })
 
-async function uploadPostMedia(pid: Post['id'], m: any, mt: "images" | "videos") {
-    // Generate file hash and path
+const MEDIA_BUCKET = 'post_medias';
+
+/**
+ * Put one uploaded file in the bucket and hand back its public URL.
+ *
+ * Objects are keyed by post id and content hash, so re-posting the same file is
+ * idempotent. `pid` is a uuid — it must not be run through parseInt.
+ */
+async function uploadPostMedia(pid: string, m: any, mt: "image" | "video") {
     const filehash = crypto
         .createHash('md5')
         .update(m.buffer)
         .digest('hex');
     const ext = path.extname(m.originalname);
-    const fileName = `/${parseInt(pid)}/${mt}s/${filehash}${ext}`;
-    const { data, error } = await supabase.storage
-        .from('post_medias')
-        .upload(fileName, m.buffer, {
-            contentType: m.mimetype,
-            upsert: true
-        });
-    if(error) throw error;
-    return data;
+    const objectPath = `${pid}/${mt}s/${filehash}${ext}`;
+
+    const { error } = await supabase.storage
+        .from(MEDIA_BUCKET)
+        .upload(objectPath, m.buffer, { contentType: m.mimetype, upsert: true });
+    if (error) throw error;
+
+    const { data: { publicUrl } } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(objectPath);
+    return { post_id: pid, file_url: publicUrl, media_type: mt };
 }
 
 router.post("/post/create", 
@@ -55,42 +65,44 @@ router.post("/post/create",
             .select();
         
         if (cderr) throw cderr;
-        
-        if(req.files) {
-            const uploadedImgs = await Promise.all(req.files?['images']: [].map((img) => uploadPostMedia(data.id, img, "images")));
-            const uploadedVids = await Promise.all(req.files?['videos']: [].map((vid) => uploadPostMedia(data.id, vid, "videos")));
 
-            const imgsURL = uploadedImgs.map((img) => {
-                // Get public URL
-                const { data: { publicUrl } } = supabase!.storage
-                    .from('post_medias')
-                    .getPublicUrl((img as any).path);
-                return publicUrl;
-            })
+        // multer only populates req.files for multipart requests; a JSON body
+        // (what the composer sends today) skips this block entirely.
+        const files = req.files as Record<string, any[]> | undefined;
+        const images = files?.['images'] ?? [];
+        const videos = files?.['videos'] ?? [];
 
-            const vidsURL = uploadedVids.map((vid) => {
-                // Get public URL
-                const { data: { publicUrl } } = supabase!.storage
-                    .from('post_medias')
-                    .getPublicUrl((vid as any).path);
-                return publicUrl;
-            })
+        if (images.length || videos.length) {
+            const rows = await Promise.all([
+                ...images.map((img) => uploadPostMedia(data.id, img, "image")),
+                ...videos.map((vid) => uploadPostMedia(data.id, vid, "video")),
+            ]);
 
-            const { data: data2, error: error2 } = await supabase
-                .from('posts')
-                .update({ media: [...imgsURL, ...vidsURL] })
-                .eq('id', data.id);
-            
-            if (error2) throw error2;
+            // Media lives in its own table — `posts` has no media column.
+            const { error: merr } = await supabase.from('media').insert(rows);
+            if (merr) throw merr;
         }
 
+        res.status(200).json({ id: data.id });
     } catch (error: any) {
         res.status(500).json({ code: error?.code, message: error?.message });
     }
-    res.status(200).send();
 })
 
-router.get("/post/fetch", async (req: Request, res: Response) => {
+/**
+ * v_post_all_data carries the total reaction_count but nothing about who reacted,
+ * so a signed-in reader's own reaction is stitched on here in one extra query.
+ * Logged-out readers just get my_reaction: null.
+ */
+async function withMyReaction(posts: any[], userId?: string) {
+    if (!userId || !posts?.length) {
+        return (posts ?? []).map((p) => ({ ...p, my_reaction: null }));
+    }
+    const mine = await myReactions(POST_TARGET, posts.map((p) => p.id), userId);
+    return posts.map((p) => ({ ...p, my_reaction: mine[p.id] ?? null }));
+}
+
+router.get("/post/fetch", optionalAuth, async (req: Request, res: Response) => {
     try {
         // SELECT * FROM posts ORDER BY posts.created_at DESC LIMIT 5
         const { data: normalpost, error: error2 } = await supabase
@@ -99,13 +111,13 @@ router.get("/post/fetch", async (req: Request, res: Response) => {
             .order('created_at', { ascending: false })
             .limit(5);
         if (error2) throw error2;
-        res.status(200).json(normalpost);
+        res.status(200).json(await withMyReaction(normalpost ?? [], req.userId));
     } catch (error: any) {
         res.status(500).json({ code: error?.code, message: error?.message });
     }
 })
 
-router.get("/post/fetch/announcement", async (req: Request, res: Response) => {
+router.get("/post/fetch/announcement", optionalAuth, async (req: Request, res: Response) => {
     try {
         const { data: announcement, error: error1 } = await supabase
             .from('v_post_all_data')
@@ -114,7 +126,7 @@ router.get("/post/fetch/announcement", async (req: Request, res: Response) => {
             .order('created_at', { ascending: false })
             .limit(5);
         if (error1) throw error1;
-        res.status(200).json(announcement);
+        res.status(200).json(await withMyReaction(announcement ?? [], req.userId));
     } catch (error: any) {
         res.status(500).json({ code: error?.code, message: error?.message });
     }
@@ -134,18 +146,21 @@ router.get("/post/fetch/notification", async (req: Request, res: Response) => {
     }
 })
 
-// RPC this one.
-router.post("/post/:pid/react", async (req: Request, res: Response) => {
+router.post("/post/:pid/react", auth, async (req: Request, res: Response) => {
     const { pid } = req.params;
     const { reaction_type } = req.body;
+
+    // null clears the reaction; anything else must be a real enum member, or
+    // Postgres rejects the insert with 22P02 further down.
+    if (reaction_type !== null && !isReactionType(reaction_type)) {
+        return res.status(400).json({
+            message: `reaction_type must be null or one of: ${REACTION_TYPES.join(", ")}`,
+        });
+    }
+
     try {
-        const { data, error } = await supabase.rpc("react_to_post", {
-            pid,
-            uid: req.userId,
-            rtype: reaction_type
-        })
-        if(error) throw error;
-        res.status(200).json(data); // reaction count send to the frontend.
+        const result = await setReaction(POST_TARGET, pid as string, req.userId!, reaction_type);
+        res.status(200).json(result); // { reaction_count, my_reaction }
     } catch (error: any) {
         res.status(500).json({ code: error?.code, message: error?.message });
     }

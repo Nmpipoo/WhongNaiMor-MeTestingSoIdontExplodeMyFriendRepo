@@ -8,15 +8,19 @@ import post from './endpoints/post';
 import user from './endpoints/user';
 import report from './endpoints/report';
 import misc from './endpoints/misc';
+import notification from './endpoints/notification';
 
 const app = express();
-const PORT = 3030;
+
+// Overridable from api/.env so a deployed backend does not need a code change.
+const PORT = Number(process.env.PORT) || 3030;
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 app.use(cors({
-    origin: 'http://localhost:3000'
+    origin: FRONTEND_ORIGIN
 }))
 
 app.use("/", post);
@@ -24,10 +28,12 @@ app.use("/", comment);
 app.use("/", user);
 app.use("/", report);
 app.use("/", misc);
+app.use("/", notification);
 
 app.listen(PORT, () => {
     console.log("Server running on port " + PORT);
-    console.log("http://localhost:3030");
+    console.log("http://localhost:" + PORT);
+    console.log("CORS origin: " + FRONTEND_ORIGIN);
 })
 
 // TODO next [DOEN]

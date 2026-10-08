@@ -1,9 +1,10 @@
 import { Router, Request, Response } from "express";
 import supabase from "../db";
+import { auth } from "../middleware";
 
 const router = Router();
 
-router.get("/notification/fetch/", async (req: Request, res: Response) => {
+router.get("/notification/fetch/", auth, async (req: Request, res: Response) => {
     try {
         const { data, error } = await supabase
             .from("v_notification") // notification and the post itself.
@@ -17,7 +18,7 @@ router.get("/notification/fetch/", async (req: Request, res: Response) => {
     }
 });
 
-router.post("/notification/:nid/read", async (req: Request, res: Response) => {
+router.post("/notification/:nid/read", auth, async (req: Request, res: Response) => {
     const { nid } = req.params;
     try {
         const { data, error } = await supabase
@@ -31,3 +32,4 @@ router.post("/notification/:nid/read", async (req: Request, res: Response) => {
         res.status(500).json({ code: error?.code, message: error?.message });
     }
 })
+export default router;

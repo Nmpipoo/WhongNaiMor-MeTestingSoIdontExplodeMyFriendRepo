@@ -5,6 +5,7 @@ import { CATS, ME, REASONS, STATUSES, type Post, type ReportStatus } from '@/lib
 import { chipStyle, statusLook } from '@/lib/ui';
 import type { AppState, SetState } from './WhongNaiMor';
 import { useAuthContext } from './AuthContext';
+import { API_URL } from '@/lib/config';
 
 const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
@@ -16,7 +17,6 @@ const trackStyle = (on: boolean, enabled = true): CSSProperties => ({
   background: on ? 'var(--color-accent)' : 'var(--color-neutral-300)', opacity: enabled ? 1 : 0.45,
 });
 
-const API_URL = "http://localhost:3030";
 
 function CatPicker({ cats, selected, onToggle }: { cats: typeof CATS, selected: string[]; onToggle: (name: string) => void }) {
   return (
