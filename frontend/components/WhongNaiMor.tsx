@@ -6,6 +6,7 @@ import {
   type Comment, type Post, type ReportStatus,
 } from '@/lib/data';
 import { ACCENT_MAP, avatarStyle, likeCount, statusLook } from '@/lib/ui';
+import { useAuthContext } from './AuthContext';
 import PostCard from './PostCard';
 import PostModal from './PostModal';
 import { ComposeDialog, EditDialog, ReportDialog } from './Dialogs';
@@ -57,7 +58,10 @@ export type SetState = (patch: Partial<AppState> | ((prev: AppState) => Partial<
 
 const INITIAL: AppState = {
   view: 'home', activeId: null, cat: null, q: '',
-  likes: {}, cLikes: {}, comments: COMMENTS, posts: POSTS, interests: ['เรียน / Academics'],
+  // posts/comments start empty and are filled from the API. Seeding them with
+  // the mock rows fired /comment/fetch/p1 before the real posts arrived, and the
+  // API rejects a non-uuid id — the error body then crashed the thread builder.
+  likes: {}, cLikes: {}, comments: {}, posts: [], interests: ['เรียน / Academics'],
   reportStatus: { p10: 'Open' },
   reportReason: { p10: 'คุกคามหรือใช้ถ้อยคำรุนแรง' },
   draft: '', composerOpen: false, replyTo: null, replyDraft: '', openReplies: {}, shown: 12,
@@ -85,6 +89,9 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const ids = useRef({ comment: 0, post: 0, media: 0 });
+
+  // Needed to sign the comment / reply writes; reads stay public.
+  const { session } = useAuthContext();
 
   const role = viewerRole;
   const isGuest = role === 'guest';
@@ -162,11 +169,10 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
   }, [])
 
   // load comment per post
-  useEffect(() => {
-    (async() => {
-      const cress = await Promise.all(st.posts.map((p) => fetch(`${API_URL}/comment/fetch/${p.id}`)))
+  const loadComments = useCallback(async (posts: Post[]) => {
+      const cress = await Promise.all(posts.map((p) => fetch(`${API_URL}/comment/fetch/${p.id}`)))
       let fetchedComments = await Promise.all(cress.map((c) => c.json()))
-      
+
       interface CommentNode {
         id: string | number;
         post_id: string;
@@ -181,7 +187,9 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
       const postComments: { [pid: string]: CommentNode[] & Comment[] } = {};
 
       for(let pcs of fetchedComments) {
-        if(pcs.length === 0) continue
+        // A failed fetch answers with { code, message }, which has no .length —
+        // the old `pcs.length === 0` check let it through and .map then threw.
+        if(!Array.isArray(pcs) || pcs.length === 0) continue
         pcs = pcs.map((c: CommentNode) => ({
           post_id: c.post_id,
           id: c.id,
@@ -221,8 +229,38 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
       }
       // console.log(postComments['33333333-3333-3333-3333-333333333332'][0].id)
       set({ comments: postComments });
-    })()
-  }, [st.posts]);
+  }, [set]);
+
+  useEffect(() => { loadComments(st.posts); }, [st.posts, loadComments]);
+
+  /**
+   * POST a comment, or a reply when parentId is given, then re-read the thread.
+   *
+   * Both create endpoints answer with an empty 200, and the row the UI needs
+   * carries joined fields (display_name, role) that the insert does not return —
+   * so the thread is re-fetched instead of being patched together on the client.
+   */
+  const postComment = useCallback(async (postId: string, text: string, parentId?: string) => {
+    const url = parentId
+      ? `${API_URL}/comment/${postId}/replyto/${parentId}`
+      : `${API_URL}/comment/${postId}`;
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ content: text }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      await loadComments(st.posts);
+      return true;
+    } catch (err) {
+      console.error('postComment', err);
+      return false;
+    }
+  }, [session, loadComments, st.posts]);
 
   // Accent palette
   useEffect(() => {
@@ -557,7 +595,8 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
           meAvatar={meAvatar}
           gate={gate}
           flash={flash}
-          nextCommentId={() => `n${++ids.current.comment}`}
+          onComment={(pid, text) => postComment(pid, text)}
+          onReply={(pid, parentId, text) => postComment(pid, text, parentId)}
           onClose={goHome}
         />
       )}

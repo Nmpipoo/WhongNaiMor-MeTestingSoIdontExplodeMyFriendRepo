@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import { ME, ROLE_LABEL, ROLE_STYLE, type Comment, type Post, type Reply } from '@/lib/data';
 import { avatarStyle } from '@/lib/ui';
 import PostCard, { type PostCardProps } from './PostCard';
@@ -18,8 +18,11 @@ interface Props {
   meAvatar: CSSProperties;
   gate: () => void;
   flash: (t: string) => void;
-  nextCommentId: () => string;
   onClose: () => void;
+  /** POST a top-level comment; resolves false if the write failed. */
+  onComment: (postId: string, text: string) => Promise<boolean>;
+  /** POST a reply under `parentId`. */
+  onReply: (postId: string, parentId: string, text: string) => Promise<boolean>;
 }
 
 /** Textareas grow with their content so the box reads like a single line until it needs more. */
@@ -40,42 +43,36 @@ function ThumbIcon({ filled }: { filled: boolean }) {
   );
 }
 
-export default function PostModal({ st, set, active, card, isGuest, isMod, meName, meInitials, meAvatar, gate, flash, nextCommentId, onClose }: Props) {
+export default function PostModal({ st, set, active, card, isGuest, isMod, meName, meInitials, meAvatar, gate, flash, onClose, onComment, onReply }: Props) {
   const draftBox = useRef<HTMLTextAreaElement>(null);
   const replyBox = useRef<HTMLTextAreaElement>(null);
+  const [sending, setSending] = useState(false);
 
   const all = st.comments[active.id] || [];
   const shownCount = Math.min(st.shown, all.length);
   const thread = all.slice(0, shownCount);
 
-  const makeEntry = (text: string) => ({
-    id: nextCommentId(), a: ME.name, i: ME.initials, t: ME.tint, time: 'เมื่อสักครู่', text,
-  });
-
-  const submitComment = () => {
+  const submitComment = async () => {
     const text = st.draft.trim();
     if (!text) return flash('ยังไม่ได้พิมพ์ความเห็น');
-    const nc: Comment = { ...makeEntry(text), r: isMod ? 'mod' : 'student', likes: 0, replies: [] };
-    set((prev) => {
-      const next = [...(prev.comments[active.id] || []), nc];
-      return {
-        comments: { ...prev.comments, [active.id]: next },
-        draft: '', composerOpen: false, shown: Math.max(prev.shown, next.length),
-      };
-    });
+    setSending(true);
+    const ok = await onComment(active.id, text);
+    setSending(false);
+    if (!ok) return flash('ส่งความเห็นไม่สำเร็จ ลองใหม่อีกครั้ง');
+    // Cleared only once the write succeeded, so a failure keeps what was typed.
+    set((prev) => ({ draft: '', composerOpen: false, shown: Math.max(prev.shown, shownCount + 1) }));
     shrink(draftBox);
     flash('ส่งความเห็นแล้ว');
   };
 
-  const submitReply = (parent: Comment) => {
+  const submitReply = async (parent: Comment) => {
     const text = st.replyDraft.trim();
     if (!text) return flash('ยังไม่ได้พิมพ์คำตอบ');
-    const nr: Reply = { ...makeEntry(text), likes: 0 };
+    setSending(true);
+    const ok = await onReply(active.id, parent.id, text);
+    setSending(false);
+    if (!ok) return flash('ตอบกลับไม่สำเร็จ ลองใหม่อีกครั้ง');
     set((prev) => ({
-      comments: {
-        ...prev.comments,
-        [active.id]: (prev.comments[active.id] || []).map((c) => (c.id === parent.id ? { ...c, replies: [...(c.replies || []), nr] } : c)),
-      },
       replyTo: null,
       replyDraft: '',
       openReplies: { ...prev.openReplies, [parent.id]: true },
@@ -151,7 +148,7 @@ export default function PostModal({ st, set, active, card, isGuest, isMod, meNam
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                       <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', marginRight: 'auto' }}>โพสต์ในชื่อ {meName}</span>
                       <button className="btn btn-ghost" onClick={() => { shrink(draftBox); set({ draft: '', composerOpen: false }); }} style={{ fontSize: 12.5, padding: '7px 14px', color: 'var(--color-neutral-700)' }}>ยกเลิก</button>
-                      <button className="btn btn-primary" onClick={submitComment} disabled={!st.draft.trim()} style={{ padding: '7px 16px', fontSize: 12.5 }}>แสดงความเห็น</button>
+                      <button className="btn btn-primary" onClick={submitComment} disabled={!st.draft.trim() || sending} style={{ padding: '7px 16px', fontSize: 12.5 }}>แสดงความเห็น</button>
                     </div>
                   )}
                 </div>
@@ -193,7 +190,7 @@ export default function PostModal({ st, set, active, card, isGuest, isMod, meNam
                           />
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                             <button className="btn btn-ghost" onClick={() => { shrink(replyBox); set({ replyTo: null, replyDraft: '' }); }} style={{ fontSize: 12.5, padding: '6px 14px', color: 'var(--color-neutral-700)' }}>ยกเลิก</button>
-                            <button className="btn btn-primary" onClick={() => submitReply(c)} disabled={!st.replyDraft.trim()} style={{ padding: '6px 16px', fontSize: 12.5 }}>ตอบกลับ</button>
+                            <button className="btn btn-primary" onClick={() => submitReply(c)} disabled={!st.replyDraft.trim() || sending} style={{ padding: '6px 16px', fontSize: 12.5 }}>ตอบกลับ</button>
                           </div>
                         </div>
                       </div>
