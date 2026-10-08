@@ -7,6 +7,7 @@ import {
 } from '@/lib/data';
 import { ACCENT_MAP, avatarStyle, likeCount, statusLook } from '@/lib/ui';
 import { useAuthContext } from './AuthContext';
+import { supabase } from '@/lib/dbauth';
 import PostCard from './PostCard';
 import PostModal from './PostModal';
 import { ComposeDialog, EditDialog, ReportDialog } from './Dialogs';
@@ -26,8 +27,9 @@ export interface AppState {
   comments: Record<string, Comment[]>;
   posts: Post[];
   interests: string[];
-  reportStatus: Record<string, ReportStatus>;
-  reportReason: Record<string, string>;
+  reportStatus: Record<string, ReportStatus>;   // keyed by post id
+  reportReason: Record<string, string>;         // keyed by post id
+  reportId: Record<string, string>;             // post id -> reports.id
   draft: string;
   composerOpen: boolean;
   replyTo: string | null;
@@ -62,8 +64,9 @@ const INITIAL: AppState = {
   // the mock rows fired /comment/fetch/p1 before the real posts arrived, and the
   // API rejects a non-uuid id — the error body then crashed the thread builder.
   likes: {}, cLikes: {}, comments: {}, posts: [], interests: ['เรียน / Academics'],
-  reportStatus: { p10: 'Open' },
-  reportReason: { p10: 'คุกคามหรือใช้ถ้อยคำรุนแรง' },
+  reportStatus: {},
+  reportReason: {},
+  reportId: {},
   draft: '', composerOpen: false, replyTo: null, replyDraft: '', openReplies: {}, shown: 12,
   composeOpen: false, newTitle: '', newText: '', newCats: [], newMedia: [], newImportant: false,
   reportFor: null, reason: null,
@@ -81,7 +84,7 @@ interface Props {
 
 const API_URL = "http://localhost:3030";
 
-export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'student', laneMode = 'single' }: Props) {
+export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneMode = 'single' }: Props) {
   const [st, setRaw] = useState<AppState>(INITIAL);
   const set: SetState = useCallback((patch) => {
     setRaw((prev) => ({ ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) }));
@@ -91,9 +94,37 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
   const ids = useRef({ comment: 0, post: 0, media: 0 });
 
   // Needed to sign the comment / reply writes; reads stay public.
-  const { session } = useAuthContext();
+  const { user, session } = useAuthContext();
 
-  const role = viewerRole;
+  /**
+   * Who is viewing, taken from users.is_mod.
+   *
+   * Read straight from Supabase rather than through /user/current/fetch: that
+   * endpoint filters v_user_all_data on a `uid` column the view does not have,
+   * so it fails for every user. The table is the same source either way.
+   */
+  const [me, setMe] = useState<{ display_name: string; is_mod: boolean } | null>(null);
+  const [roleLoaded, setRoleLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) { setMe(null); setRoleLoaded(true); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('v_user_all_data')
+        .select('display_name, is_mod')
+        .eq('id', user.id)
+        .single();
+      if (cancelled) return;
+      if (error) console.error('load viewer', error);
+      setMe(error ? null : { display_name: data.display_name, is_mod: !!data.is_mod });
+      setRoleLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // The prop still wins, so a role can be forced while demoing.
+  const role: ViewerRole = viewerRole ?? (me ? (me.is_mod ? 'moderator' : 'student') : 'guest');
   const isGuest = role === 'guest';
   const isMod = role === 'moderator';
 
@@ -262,6 +293,34 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
     }
   }, [session, loadComments, st.posts]);
 
+  /**
+   * Load the moderation queue, for moderators only.
+   *
+   * Read straight from the reports table rather than through /report/fetch,
+   * which gates on getUserData() and so hits the same broken `uid` filter.
+   * A post can hold several tickets; the newest one represents it in the queue.
+   */
+  const loadReports = useCallback(async () => {
+    if (!isMod) return;
+    const { data, error } = await supabase
+      .from('reports')
+      .select('id, post_id, reason, status, created_at')
+      .order('created_at', { ascending: true });
+    if (error) return console.error('loadReports', error);
+
+    const status: Record<string, ReportStatus> = {};
+    const reason: Record<string, string> = {};
+    const rid: Record<string, string> = {};
+    (data ?? []).forEach((r: any) => {
+      status[r.post_id] = r.status;
+      reason[r.post_id] = r.reason;
+      rid[r.post_id] = r.id;
+    });
+    set({ reportStatus: status, reportReason: reason, reportId: rid });
+  }, [isMod, set]);
+
+  useEffect(() => { loadReports(); }, [loadReports]);
+
   // Accent palette
   useEffect(() => {
     const v = ACCENT_MAP[accentColor];
@@ -318,8 +377,35 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
 
   const openPost = (id: string) => set({ activeId: id, notifOpen: false, replyTo: null, replyDraft: '', composerOpen: false, shown: 12 });
 
-  const setStatus = (id: string, next: ReportStatus) => {
+  /**
+   * `id` is the post id; the ticket it maps to is what gets updated.
+   *
+   * Heads up: this write currently fails for everyone with
+   *   42703 record "new" has no field "reviewed_by"
+   * A trigger on `reports` reads NEW.reviewed_by, but the table only has
+   * reviewed_at. It is a database-side fix, so until it lands the UI rolls the
+   * chip back and says so rather than pretending the change stuck.
+   */
+  const setStatus = async (id: string, next: ReportStatus) => {
+    const rid = st.reportId[id];
+    if (!rid) return flash('ไม่พบตั๋วรายงานของโพสต์นี้');
+
+    const before = st.reportStatus[id];
     set((prev) => ({ reportStatus: { ...prev.reportStatus, [id]: next } }));
+
+    const { error } = await supabase
+      .from('reports')
+      .update({ status: next, reviewed_at: new Date().toISOString() })
+      .eq('id', rid);
+
+    if (error) {
+      console.error('setStatus', error);
+      set((prev) => ({ reportStatus: { ...prev.reportStatus, [id]: before } }));
+      flash(error.code === '42703'
+        ? 'เปลี่ยนสถานะไม่ได้ · ติดที่ trigger ฝั่ง DB (reviewed_by)'
+        : 'เปลี่ยนสถานะไม่สำเร็จ');
+      return;
+    }
     flash(`เปลี่ยนสถานะรายงานเป็น ${next}`);
   };
 
@@ -349,9 +435,10 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole = 'stu
     .sort((a, b) => (b.priority ? 1 : 0) - (a.priority ? 1 : 0) || b.likes - a.likes)
     .slice(0, 4);
 
-  const meInitials = isGuest ? 'G' : ME.initials;
+  // Real display_name once it loads; ME is only the fallback in between.
+  const meName = isGuest ? 'ผู้เยี่ยมชม' : (me?.display_name ?? ME.name);
+  const meInitials = isGuest ? 'G' : meName.slice(0, 2);
   const meAvatar = avatarStyle(isGuest ? 3 : ME.tint, 34);
-  const meName = isGuest ? 'ผู้เยี่ยมชม' : ME.name;
 
   const roleBanner = isMod
     ? 'โหมดผู้ดูแล · แตะชิปสถานะบนโพสต์ที่ถูกรายงานเพื่อเปลี่ยน Open → Reviewed → Dismissed'
