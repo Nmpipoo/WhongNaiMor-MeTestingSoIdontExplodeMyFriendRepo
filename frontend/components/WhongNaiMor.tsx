@@ -115,14 +115,19 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
     if (!user?.id) { setMe(null); setRoleLoaded(true); return; }
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        .from('v_user_all_data')
-        .select('display_name, is_mod')
-        .eq('id', user.id)
-        .single();
+      const res = await fetch(`${API_URL}/user/current/fetch`, { headers: authHeaders({ "Content-Type": "application/json" }) });
+      console.log(res.status);
+
       if (cancelled) return;
-      if (error) console.error('load viewer', error);
-      setMe(error ? null : { display_name: data.display_name, is_mod: !!data.is_mod });
+      if (!res.ok) {
+        const errorBody = await res.json();
+        console.error('load viewer', res.status, errorBody);
+        setMe(null);
+        setRoleLoaded(true);
+        return;
+      }
+      const data = await res.json();
+      setMe({ display_name: data.display_name, is_mod: !!data.is_mod });
       setRoleLoaded(true);
     })();
     return () => { cancelled = true; };
@@ -317,11 +322,26 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
    */
   const loadReports = useCallback(async () => {
     if (!isMod) return;
-    const { data, error } = await supabase
-      .from('reports')
-      .select('id, post_id, reason, status, created_at')
-      .order('created_at', { ascending: true });
-    if (error) return console.error('loadReports', error);
+
+    const res = await fetch(`${API_URL}/report/fetch`, { 
+      method: 'GET',
+      headers: authHeaders({"Content-Type": "application/json"})
+    });
+    // console.log(res.status);
+    // console.log(await res.json());
+
+    // don't use supabase here
+    // const { data, error } = await supabase
+    //   .from('reports')
+    //   .select('id, post_id, reason, status, created_at')
+    //   .order('created_at', { ascending: true });
+    // if (error) return console.error('loadReports', error);
+    if (!res.ok) {
+      const errorBody = await res.json();
+      console.error('loadReports', res.status, errorBody);
+      return;
+    }
+    const data = await res.json();
 
     const status: Record<string, ReportStatus> = {};
     const reason: Record<string, string> = {};
@@ -408,12 +428,18 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
     const before = st.reportStatus[id];
     set((prev) => ({ reportStatus: { ...prev.reportStatus, [id]: next } }));
 
-    const { error } = await supabase
-      .from('reports')
-      .update({ status: next, reviewed_at: new Date().toISOString() })
-      .eq('id', rid);
+    // const { error } = await supabase
+    //   .from('reports')
+    //   .update({ status: next, reviewed_at: new Date().toISOString() })
+    //   .eq('id', rid);
+    const res = await fetch(`${API_URL}/report/update/${rid}`, {
+      method: 'PUT',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ status: next }),
+    });
 
-    if (error) {
+    if (!res.ok) {
+      const error = await res.json();
       console.error('setStatus', error);
       set((prev) => ({ reportStatus: { ...prev.reportStatus, [id]: before } }));
       flash(error.code === '42703'

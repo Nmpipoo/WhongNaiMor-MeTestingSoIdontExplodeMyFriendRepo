@@ -14,6 +14,7 @@ router.get("/report/fetch", auth, async (req: Request, res: Response) => {
         const { data, error } = await supabase
             .from("reports")
             .select("*")
+            .order('created_at', { ascending: true });
             ;
         if(error) throw error;
         res.status(200).json(data);

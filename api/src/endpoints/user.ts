@@ -1,5 +1,6 @@
 import { Request, Response, Router } from 'express';
 import supabase from '../db';
+import { auth } from '../middleware';
 
 const router = Router();
 
@@ -9,14 +10,14 @@ export async function getUserData(uid: string) {
         // .from("user")
         .from("v_user_all_data") // more data -> user interests
         .select("*")
-        .eq("uid", uid)
+        .eq("id", uid)
         .single();
 
     if (error) throw error;
     return data
 }
 
-router.get('/user/current/fetch', async (req, res) => {
+router.get('/user/current/fetch', auth, async (req, res) => {
     try {
         const data = await getUserData(req.userId!);
         res.status(200).json(data);

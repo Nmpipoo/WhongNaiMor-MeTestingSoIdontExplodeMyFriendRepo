@@ -116,7 +116,7 @@ router.get("/post/fetch", optionalAuth, async (req: Request, res: Response) => {
             .from('v_post_all_data')
             .select("*")
             .order('created_at', { ascending: false })
-            .limit(5);
+            // .limit(5);
         if (error2) throw error2;
         res.status(200).json(await withMyReaction(normalpost ?? [], req.userId));
     } catch (error: any) {
