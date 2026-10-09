@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useState, type CSSProperties } from 'react';
-import { ME, ROLE_LABEL, ROLE_STYLE, type Comment, type Post, type Reply } from '@/lib/data';
+import ReactionBar from './ReactionBar';
+import { ME, ROLE_LABEL, ROLE_STYLE, type Comment, type Post, type ReactionType, type Reply } from '@/lib/data';
 import { avatarStyle } from '@/lib/ui';
 import PostCard, { type PostCardProps } from './PostCard';
 import type { AppState, SetState } from './WhongNaiMor';
@@ -23,6 +24,8 @@ interface Props {
   onComment: (postId: string, text: string) => Promise<boolean>;
   /** POST a reply under `parentId`. */
   onReply: (postId: string, parentId: string, text: string) => Promise<boolean>;
+  /** Toggle this viewer's reaction on one comment or reply. */
+  onReactComment: (commentId: string, r: ReactionType) => void;
 }
 
 /** Textareas grow with their content so the box reads like a single line until it needs more. */
@@ -34,16 +37,7 @@ const autoGrow = (el: HTMLTextAreaElement) => {
 type BoxRef = React.RefObject<HTMLTextAreaElement | null>;
 const shrink = (r: BoxRef) => { if (r.current) r.current.style.height = 'auto'; };
 
-function ThumbIcon({ filled }: { filled: boolean }) {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M7 10.5v9H4.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z" />
-      <path d="M7 10.5l4.2-7.1a1.6 1.6 0 0 1 2.9 1.2l-.9 4.2h5a2 2 0 0 1 2 2.4l-1.3 6.2a2 2 0 0 1-2 1.6H7z" />
-    </svg>
-  );
-}
-
-export default function PostModal({ st, set, active, card, isGuest, isMod, meName, meInitials, meAvatar, gate, flash, onClose, onComment, onReply }: Props) {
+export default function PostModal({ st, set, active, card, isGuest, isMod, meName, meInitials, meAvatar, gate, flash, onClose, onComment, onReply, onReactComment }: Props) {
   const draftBox = useRef<HTMLTextAreaElement>(null);
   const replyBox = useRef<HTMLTextAreaElement>(null);
   const [sending, setSending] = useState(false);
@@ -81,34 +75,31 @@ export default function PostModal({ st, set, active, card, isGuest, isMod, meNam
     flash('ตอบกลับแล้ว');
   };
 
-  const toggleLike = (id: string) => set((prev) => ({ cLikes: { ...prev.cLikes, [id]: !prev.cLikes[id] } }));
+  // Posting the reaction is the parent's job; it owns the API call and the reload.
+  const toggleLike = (id: string, r: ReactionType) => onReactComment(id, r);
 
   const openReplyBox = (c: Comment) => (isGuest ? gate() : set({ replyTo: c.id, replyDraft: '' }));
 
   /** The like / reply action row that sits under every comment and reply, YouTube style. */
-  const actionRow = (id: string, baseLikes: number, onReply?: () => void) => {
-    const liked = !!st.cLikes[id];
-    const n = baseLikes + (liked ? 1 : 0);
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 4 }}>
-        <button
-          className="btn btn-ghost"
-          onClick={() => (isGuest ? gate() : toggleLike(id))}
-          aria-pressed={liked}
-          title={liked ? 'เลิกถูกใจ' : 'ถูกใจ'}
-          style={{ fontSize: 12, padding: '5px 8px', color: liked ? 'var(--color-accent)' : 'var(--color-neutral-600)' }}
-        >
-          <ThumbIcon filled={liked} />
-          {n > 0 ? n : ''}
+  const actionRow = (id: string, baseLikes: number, onReply?: () => void) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 4 }}>
+      <ReactionBar
+        compact
+        mine={st.cLikes[id] ?? null}
+        // baseLikes is the server's reaction_count, which already counts this
+        // viewer's own reaction — adding one for it would double-count.
+        count={baseLikes}
+        disabled={isGuest}
+        onReact={(r) => toggleLike(id, r)}
+        onBlocked={gate}
+      />
+      {onReply && (
+        <button className="btn btn-ghost" onClick={onReply} style={{ fontSize: 12, fontWeight: 600, padding: '5px 10px', color: 'var(--color-neutral-700)' }}>
+          ตอบกลับ
         </button>
-        {onReply && (
-          <button className="btn btn-ghost" onClick={onReply} style={{ fontSize: 12, fontWeight: 600, padding: '5px 10px', color: 'var(--color-neutral-700)' }}>
-            ตอบกลับ
-          </button>
-        )}
-      </div>
-    );
-  };
+      )}
+    </div>
+  );
 
   return (
     <div className="dialog-backdrop" style={{ zIndex: 39, animation: 'wnm-pop .16s ease both' }} onClick={(e) => { if (e.target === e.currentTarget) set({ activeId: null, replyTo: null }); }}>

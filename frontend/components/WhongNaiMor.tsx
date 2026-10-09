@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CATS, COMMENTS, ME, NOTIFS, POSTS, QA, STATUSES,
-  type Comment, type Post, type ReportStatus,
+  type Comment, type Post, type ReactionType, type ReportStatus,
 } from '@/lib/data';
 import { ACCENT_MAP, avatarStyle, likeCount, statusLook } from '@/lib/ui';
 import { useAuthContext } from './AuthContext';
@@ -22,8 +22,8 @@ export interface AppState {
   activeId: string | null;
   cat: string | null;
   q: string;
-  likes: Record<string, boolean>;
-  cLikes: Record<string, boolean>;
+  likes: Record<string, ReactionType>;      // post id -> this viewer's reaction
+  cLikes: Record<string, ReactionType>;     // comment id -> this viewer's reaction
   comments: Record<string, Comment[]>;
   posts: Post[];
   interests: string[];
@@ -93,8 +93,13 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const ids = useRef({ comment: 0, post: 0, media: 0 });
 
-  // Needed to sign the comment / reply writes; reads stay public.
+  // Needed to sign the comment / reply / reaction writes; reads stay public,
+  // but a signed-in reader also gets my_reaction back on the fetch routes.
   const { user, session } = useAuthContext();
+
+  const authHeaders = useCallback((extra: Record<string, string> = {}): Record<string, string> =>
+    (session?.access_token ? { ...extra, Authorization: `Bearer ${session.access_token}` } : extra),
+    [session]);
 
   /**
    * Who is viewing, taken from users.is_mod.
@@ -174,35 +179,44 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
   }, [st.CATS])
 
   // Load post (comment count doesn't show)
-  useEffect(() => {
-    // return;
-    fetch(`${API_URL}/post/fetch`).then((posts) => {
-      posts.json().then((ps) => {
-        let frontendPosts: Post[] = [];
-        ps.forEach((p: any) => {
-          frontendPosts.push({
-            id: p.id,
-            important: p.is_important,
-            name: p.author_name,
-            time: getTimeAgo(p.created_at),
-            initials: p.author_name.slice(0, 2),
-            title: p.title,
-            body: p.content,
-            role: p.role,
-            cats: p.categories.map((c: any) => c.name),
-            likes: p.reaction_count,
-            media: p.medias.map((m: any) => m.file_url),
-          });
-        })
-        set({ posts: frontendPosts });
-      });
-    }).catch((err) => console.error(err));
-  }, [])
+  const loadPosts = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/post/fetch`, { headers: authHeaders() });
+      const ps = await res.json();
+      if (!Array.isArray(ps)) throw new Error(ps?.message ?? 'bad /post/fetch payload');
+      let frontendPosts: Post[] = [];
+      ps.forEach((p: any) => {
+        frontendPosts.push({
+          id: p.id,
+          important: p.is_important,
+          name: p.author_name,
+          time: getTimeAgo(p.created_at),
+          initials: p.author_name.slice(0, 2),
+          title: p.title,
+          body: p.content,
+          role: p.role,
+          cats: p.categories.map((c: any) => c.name),
+          likes: p.reaction_count,
+          media: p.medias.map((m: any) => m.file_url),
+        });
+      })
+      // my_reaction comes from the API, so the filled heart survives a reload.
+      // Without it the next tap would remove a reaction the UI thinks it is adding.
+      const mine: Record<string, ReactionType> = {};
+      ps.forEach((p: any) => { if (p.my_reaction) mine[p.id] = p.my_reaction; });
+      set({ posts: frontendPosts, likes: mine });
+    } catch (err) { console.error(err); }
+  }, [set, session])
+
+  useEffect(() => { loadPosts(); }, [loadPosts])
 
   // load comment per post
   const loadComments = useCallback(async (posts: Post[]) => {
-      const cress = await Promise.all(posts.map((p) => fetch(`${API_URL}/comment/fetch/${p.id}`)))
+      // Signed in, the API tags each row with my_reaction; signed out it sends null.
+      // Signed in, the API tags each row with my_reaction; signed out it sends null.
+      const cress = await Promise.all(posts.map((p) => fetch(`${API_URL}/comment/fetch/${p.id}`, { headers: authHeaders() })))
       let fetchedComments = await Promise.all(cress.map((c) => c.json()))
+      const mineC: Record<string, ReactionType> = {};
 
       interface CommentNode {
         id: string | number;
@@ -212,6 +226,8 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
         role: string;
         content: string;
         created_at: string;
+        reaction_count?: number;
+        my_reaction?: string | null;
         replies?: CommentNode[];
       }
       const rootComments: CommentNode[] & Comment[] = [];
@@ -221,6 +237,8 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
         // A failed fetch answers with { code, message }, which has no .length —
         // the old `pcs.length === 0` check let it through and .map then threw.
         if(!Array.isArray(pcs) || pcs.length === 0) continue
+        // Remember which of these the viewer has reacted to before reshaping.
+        pcs.forEach((c: any) => { if (c.my_reaction) mineC[c.id] = c.my_reaction; });
         pcs = pcs.map((c: CommentNode) => ({
           post_id: c.post_id,
           id: c.id,
@@ -230,7 +248,7 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
           i: c.display_name.slice(0, 2),
           time: getTimeAgo(c.created_at),
           text: c.content,
-          likes: 0, //placeholder
+          likes: c.reaction_count ?? 0,
           t: 3, //placeholder
         }))
 
@@ -259,8 +277,8 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
         rootComments.length = 0;
       }
       // console.log(postComments['33333333-3333-3333-3333-333333333332'][0].id)
-      set({ comments: postComments });
-  }, [set]);
+      set({ comments: postComments, cLikes: mineC });
+  }, [set, session]);
 
   useEffect(() => { loadComments(st.posts); }, [st.posts, loadComments]);
 
@@ -278,10 +296,7 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ content: text }),
       });
       if (!res.ok) throw new Error(String(res.status));
@@ -415,15 +430,87 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
     set({ editFor: id, editTitle: p.title, editBody: p.body, editCats: [...(p.cats || [])], editImportant: !!p.important });
   };
 
+  /**
+   * Toggle this viewer's reaction through the API.
+   *
+   * POST /post/:pid/react and POST /comment/:cid/react both wrap an RPC that
+   * flips the reaction server-side, so the body only names the type. The reply
+   * shape is whatever that RPC returns, so rather than reading it we re-pull the
+   * rows afterwards and take the counts from there.
+   *
+   * Heads up: both RPCs currently fail with
+   *   42804 column "reaction_type" is of type reaction_type but expression is of type text
+   * (the function passes `rtype` into the enum column without a cast), and
+   * /post/:pid/react is also missing its auth middleware, so it sends
+   * uid: undefined. Both are server-side fixes; this code needs no change once
+   * they land.
+   */
+  const react = useCallback(async (kind: 'post' | 'comment', id: string, type: ReactionType = 'like') => {
+    const url = kind === 'post' ? `${API_URL}/post/${id}/react` : `${API_URL}/comment/${id}/react`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ reaction_type: type }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      // The two routes fail differently today, and the codes say which bug it is:
+      //   42804   the RPC puts `rtype` text into the enum column without a cast
+      //   PGRST202 no uid reached the RPC, so PostgREST looked for a 2-arg
+      //            overload — /post/:pid/react is missing its auth middleware
+      const known: Record<string, string> = {
+        '42804': 'รีแอคไม่ได้ · RPC ฝั่ง DB ยังไม่ cast reaction_type',
+        PGRST202: 'รีแอคไม่ได้ · /post/:pid/react ยังไม่มี auth เลยส่ง uid ไปไม่ครบ',
+      };
+      throw new Error(known[body?.code] ?? body?.message ?? `HTTP ${res.status}`);
+    }
+  }, [session]);
+
+  /** Drop the key entirely when the reaction is cleared, so lookups stay falsy. */
+  const withReaction = (map: Record<string, ReactionType>, id: string, next?: ReactionType) => {
+    const copy = { ...map };
+    if (next) copy[id] = next; else delete copy[id];
+    return copy;
+  };
+
+  const reactToPost = useCallback(async (pid: string, type: ReactionType) => {
+    const before = st.likes[pid];
+    // Tapping the one already held clears it — same rule the endpoint applies.
+    const next = before === type ? undefined : type;
+    set((prev) => ({ likes: withReaction(prev.likes, pid, next) }));
+    try {
+      await react('post', pid, type);
+      await loadPosts();                       // counts come back from the server
+    } catch (err: any) {
+      console.error('reactToPost', err);
+      set((prev) => ({ likes: withReaction(prev.likes, pid, before) }));
+      flash(err.message);
+    }
+  }, [react, loadPosts, set, flash, st.likes]);
+
+  const reactToComment = useCallback(async (cid: string, type: ReactionType) => {
+    const before = st.cLikes[cid];
+    const next = before === type ? undefined : type;
+    set((prev) => ({ cLikes: withReaction(prev.cLikes, cid, next) }));
+    try {
+      await react('comment', cid, type);
+      await loadComments(st.posts);
+    } catch (err: any) {
+      console.error('reactToComment', err);
+      set((prev) => ({ cLikes: withReaction(prev.cLikes, cid, before) }));
+      flash(err.message);
+    }
+  }, [react, loadComments, set, flash, st.cLikes, st.posts]);
+
   const cardProps = (p: Post) => ({
     CATS: st.CATS,
     post: p,
-    liked: !!st.likes[p.id],
+    liked: st.likes[p.id] ?? null,
     commentCount: (st.comments[p.id] || []).length,
     reportStatus: st.reportStatus[p.id],
     isGuest,
     isMod,
-    onLike: () => set((prev) => ({ likes: { ...prev.likes, [p.id]: !prev.likes[p.id] } })),
+    onReact: (r: ReactionType) => reactToPost(p.id, r),
     onGate: gate,
     onOpen: () => openPost(p.id),
     onEdit: () => openEdit(p.id),
@@ -603,7 +690,7 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
                   >
                     {p.priority === 'urgent' ? 'ประกาศด่วน' : 'ประกาศ'}
                   </span>
-                  <span style={{ fontSize: 10.5, color: 'var(--color-neutral-700)' }}>{likeCount(p, st.likes[p.id]).toLocaleString()} ถูกใจ</span>
+                  <span style={{ fontSize: 10.5, color: 'var(--color-neutral-700)' }}>{likeCount(p).toLocaleString()} ถูกใจ</span>
                 </span>
                 <span style={{ fontSize: 12.5, lineHeight: 1.4, display: 'block', fontWeight: 600 }}>{p.title}</span>
                 <span style={{ fontSize: 11, color: 'var(--color-neutral-700)' }}>{p.name}</span>
@@ -684,6 +771,7 @@ export default function WhongNaiMor({ accentColor = '#7d50a8', viewerRole, laneM
           flash={flash}
           onComment={(pid, text) => postComment(pid, text)}
           onReply={(pid, parentId, text) => postComment(pid, text, parentId)}
+          onReactComment={reactToComment}
           onClose={goHome}
         />
       )}

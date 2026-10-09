@@ -3,6 +3,20 @@ import type { CSSProperties } from 'react';
 export type Role = 'org' | 'staff' | 'mod' | 'student';
 export type ReportStatus = 'Open' | 'Reviewed' | 'Dismissed';
 
+// Mirrors the Postgres enum public.reaction_type, which the react endpoints accept.
+export const REACTIONS = ['like', 'love', 'haha', 'sad', 'angry', 'care'] as const;
+export type ReactionType = typeof REACTIONS[number];
+
+/** Emoji + Thai label for each reaction, in picker order. */
+export const REACTION_LOOK: Record<ReactionType, { icon: string; label: string }> = {
+  like: { icon: '👍', label: 'ถูกใจ' },
+  love: { icon: '❤️', label: 'รักเลย' },
+  haha: { icon: '😄', label: 'ฮา' },
+  sad: { icon: '😢', label: 'เศร้า' },
+  angry: { icon: '😠', label: 'โกรธ' },
+  care: { icon: '🤗', label: 'ห่วงใย' },
+};
+
 export interface Media { type: 'image' | 'video'; label: string }
 
 export interface Post {
